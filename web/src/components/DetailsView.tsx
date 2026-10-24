@@ -1,22 +1,16 @@
 import { For } from "solid-js";
-import { formatSize, type SortColumn } from "../lib/rows";
+import { formatGold, formatMicrons, formatPixelSize, formatSize, resolution, SORT_COLUMNS } from "../lib/rows";
 import { isSelected, store } from "../store";
-
-const COLUMNS: { id: SortColumn; label: string }[] = [
-  { id: "name", label: "Name" },
-  { id: "date", label: "Date" },
-  { id: "size", label: "Size" },
-  { id: "uploaded", label: "Uploaded" },
-];
+import { FolderIcon, ImageIcon } from "./Icons";
 
 export default function DetailsView() {
   return (
     <table class="details">
       <thead>
         <tr>
-          <For each={COLUMNS}>
+          <For each={SORT_COLUMNS}>
             {(col) => (
-              <th onClick={() => store.sortBy(col.id)}>
+              <th class="eyebrow" onClick={() => store.sortBy(col.id)}>
                 {col.label}
                 {store.sortColumn() === col.id ? (store.sortDir() === "asc" ? " ▲" : " ▼") : ""}
               </th>
@@ -36,9 +30,20 @@ export default function DetailsView() {
               onDblClick={() => store.navigate(folder.prefix)}
             >
               <td>
-                <span class="folder-icon">📁</span> {folder.name}
+                <span class="row-name">
+                  <span class="folder-glyph">
+                    <FolderIcon />
+                  </span>
+                  {folder.name}
+                </span>
               </td>
-              <td>{folder.date ?? ""}</td>
+              <td class="mono">{folder.date ?? ""}</td>
+              <td />
+              <td />
+              <td />
+              <td />
+              <td />
+              <td />
               <td />
               <td />
             </tr>
@@ -55,11 +60,20 @@ export default function DetailsView() {
               onDblClick={() => store.openViewer(file.key)}
             >
               <td>
-                <span class="file-icon">🖼</span> {file.name}
+                <span class="row-name">
+                  <ImageIcon />
+                  {file.name}
+                </span>
               </td>
-              <td>{file.date ?? ""}</td>
-              <td class="num">{formatSize(file.size)}</td>
-              <td>{new Date(file.uploaded).toLocaleString()}</td>
+              <td class="mono">{file.date ?? ""}</td>
+              <td class="num mono">{formatSize(file.size)}</td>
+              <td class="num mono">{formatMicrons(file.meta?.fieldWidthUm ?? null)}</td>
+              <td class="num mono">{formatPixelSize(file.meta?.pixelSizeUm ?? null)}</td>
+              <td class="num mono">{(file.meta && resolution(file.meta)) || "—"}</td>
+              <td>{file.meta?.instrument || "—"}</td>
+              <td>{file.meta?.detector || "—"}</td>
+              <td>{formatGold(file.meta?.gold)}</td>
+              <td class="mono">{new Date(file.uploaded).toLocaleString()}</td>
             </tr>
           )}
         </For>

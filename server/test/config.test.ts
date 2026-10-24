@@ -34,3 +34,10 @@ test("rejects a non-numeric PORT", () => {
 test("strips slashes from B2_RAW_PREFIX", () => {
   expect(loadConfig({ ...full, B2_RAW_PREFIX: "/yeast/" }, "/app").rawPrefix).toBe("yeast");
 });
+
+test("REGISTRY_CSV_PATH is optional and resolves against the repo root", () => {
+  expect(loadConfig(full, "/app").registryCsvPath).toBeNull();
+  expect(loadConfig({ ...full, REGISTRY_CSV_PATH: "reg/images.csv" }, "/app").registryCsvPath).toBe(
+    path.resolve("/app", "reg/images.csv"),
+  );
+});

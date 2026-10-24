@@ -8,8 +8,9 @@ import { HttpError } from "./errors.js";
 import type { ImageRenderer, ImageSize } from "./images.js";
 import { validateKey, validatePrefix } from "./keys.js";
 import { mapListing } from "./listing.js";
+import type { Registry } from "./registry.js";
 
-export type AppDeps = { config: Config; b2: B2; images?: ImageRenderer; webDist?: string };
+export type AppDeps = { config: Config; b2: B2; images?: ImageRenderer; registry?: Registry; webDist?: string };
 
 /** Logs one line per request: method, path, status, duration. */
 function requestLog(req: Request, res: Response, next: NextFunction): void {
@@ -25,7 +26,7 @@ function authSlot(_req: Request, _res: Response, next: NextFunction): void {
   next();
 }
 
-export function createApp({ config, b2, images, webDist }: AppDeps): express.Express {
+export function createApp({ config, b2, images, registry, webDist }: AppDeps): express.Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(requestLog);
@@ -40,8 +41,15 @@ export function createApp({ config, b2, images, webDist }: AppDeps): express.Exp
 
   app.get("/api/list", async (req, res) => {
     const prefix = validatePrefix(req.query.prefix, config.rawPrefix);
-    const raw = await b2.list(prefix);
-    res.json(mapListing(prefix, config.rawPrefix, raw));
+    // The B2 listing and the Registry check run side by side; the Registry never fails a listing.
+    const [raw] = await Promise.all([b2.list(prefix), registry?.refresh()]);
+    res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup));
+  });
+
+  // Whether Registry metadata is available, so the browser can show a warning when it is not.
+  app.get("/api/registry", async (_req, res) => {
+    await registry?.refresh();
+    res.json(registry?.status() ?? { configured: false, loaded: false, rows: 0, version: null, error: null });
   });
 
   // The original TIFF, streamed unchanged from B2 to the browser (never held fully in memory).

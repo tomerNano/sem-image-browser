@@ -16,7 +16,12 @@ export interface B2 {
 }
 
 /** The part of S3Client this module uses; tests pass an in-memory stand-in. */
-export type S3Like = { send(command: any): Promise<any> };
+export type S3Like = { send(command: any, options?: { abortSignal?: AbortSignal }): Promise<any> };
+
+export type B2Options = {
+  /** Upper limit for list, head and whole-object reads. Downloads (getStream) are limited by the socket timeout instead. */
+  timeoutMs?: number;
+};
 
 function isNotFound(err: unknown): boolean {
   const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -30,7 +35,8 @@ function toHttpError(err: unknown): HttpError {
   return new HttpError(502, "B2 unavailable", { cause: err });
 }
 
-export function createB2(config: Config, client?: S3Like): B2 {
+export function createB2(config: Config, client?: S3Like, options: B2Options = {}): B2 {
+  const timeoutMs = options.timeoutMs ?? 60_000;
   const s3: S3Like =
     client ??
     new S3Client({
@@ -41,7 +47,11 @@ export function createB2(config: Config, client?: S3Like): B2 {
       // B2 does not support every newer S3 checksum feature; only use checksums when required.
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
+      // Without these, a silently dropped connection waits for the OS TCP timeout (minutes).
+      requestHandler: { connectionTimeout: 5_000, socketTimeout: 30_000 },
     });
+  /** send() that gives up after timeoutMs, so a stalled B2 call cannot block a request forever. */
+  const sendWithTimeout = (command: unknown) => s3.send(command, { abortSignal: AbortSignal.timeout(timeoutMs) });
   const Bucket = config.bucket;
 
   return {
@@ -50,7 +60,7 @@ export function createB2(config: Config, client?: S3Like): B2 {
       let token: string | undefined;
       try {
         do {
-          const page = await s3.send(
+          const page = await sendWithTimeout(
             new ListObjectsV2Command({ Bucket, Prefix: prefix, Delimiter: "/", ContinuationToken: token }),
           );
           for (const p of page.CommonPrefixes ?? []) if (p.Prefix) result.prefixes.push(p.Prefix);
@@ -67,7 +77,7 @@ export function createB2(config: Config, client?: S3Like): B2 {
 
     async head(key) {
       try {
-        const res = await s3.send(new HeadObjectCommand({ Bucket, Key: key }));
+        const res = await sendWithTimeout(new HeadObjectCommand({ Bucket, Key: key }));
         return { etag: String(res.ETag ?? "").replace(/"/g, ""), size: res.ContentLength ?? 0 };
       } catch (err) {
         if (isNotFound(err)) return null;
@@ -77,7 +87,7 @@ export function createB2(config: Config, client?: S3Like): B2 {
 
     async getBytes(key) {
       try {
-        const res = await s3.send(new GetObjectCommand({ Bucket, Key: key }));
+        const res = await sendWithTimeout(new GetObjectCommand({ Bucket, Key: key }));
         return Buffer.from(await res.Body.transformToByteArray());
       } catch (err) {
         throw toHttpError(err);

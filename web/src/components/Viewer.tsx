@@ -1,16 +1,22 @@
-import { createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
-import { downloadUrl, previewUrl } from "../api";
+import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
+import { downloadUrl, previewUrl, thumbUrl } from "../api";
 import { store } from "../store";
+import { NextIcon, PrevIcon } from "./Icons";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
+/** Neighbours whose previews load in the background: two ahead, one behind. */
+const PREFETCH = [1, 2, -1];
 
 /** Full-window image viewer: wheel zooms around the cursor, drag pans, arrows step, Esc closes. */
 export default function Viewer(props: { fileKey: string }) {
   const [scale, setScale] = createSignal(1);
   const [offset, setOffset] = createSignal({ x: 0, y: 0 });
+  const [failed, setFailed] = createSignal(false);
+  const [loaded, setLoaded] = createSignal(false);
+  // A signal, not a plain variable: the stage's "dragging" class (grabbing cursor) reads it.
+  const [drag, setDrag] = createSignal<{ x: number; y: number; ox: number; oy: number } | null>(null);
   let stage!: HTMLDivElement;
-  let drag: { x: number; y: number; ox: number; oy: number } | null = null;
 
   const files = () => store.visibleFiles();
   const index = () => files().findIndex((f) => f.key === props.fileKey);
@@ -20,8 +26,29 @@ export default function Viewer(props: { fileKey: string }) {
     setScale(1);
     setOffset({ x: 0, y: 0 });
   };
-  // A new image starts unzoomed.
-  createEffect(on(() => props.fileKey, reset));
+  // A new image starts unzoomed, with no error, showing its thumbnail until the preview loads.
+  createEffect(
+    on(
+      () => props.fileKey,
+      () => {
+        reset();
+        setFailed(false);
+        setLoaded(false);
+      },
+    ),
+  );
+
+  // Ask for the neighbours' previews now, so stepping finds them in the browser cache.
+  createEffect(() => {
+    const i = index();
+    if (i < 0) return;
+    for (const delta of PREFETCH) {
+      const neighbour = files()[i + delta];
+      if (neighbour) new Image().src = previewUrl(neighbour.key);
+    }
+  });
+
+  const transform = () => ({ transform: `translate(${offset().x}px, ${offset().y}px) scale(${scale()})` });
 
   function step(delta: number) {
     const next = files()[index() + delta];
@@ -54,23 +81,25 @@ export default function Viewer(props: { fileKey: string }) {
 
   function onPointerDown(e: PointerEvent) {
     if (scale() === 1) return;
-    drag = { x: e.clientX, y: e.clientY, ox: offset().x, oy: offset().y };
+    setDrag({ x: e.clientX, y: e.clientY, ox: offset().x, oy: offset().y });
     stage.setPointerCapture(e.pointerId);
   }
 
   function onPointerMove(e: PointerEvent) {
-    if (!drag) return;
-    setOffset({ x: drag.ox + e.clientX - drag.x, y: drag.oy + e.clientY - drag.y });
+    const d = drag();
+    if (!d) return;
+    setOffset({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
   }
 
   return (
     <div class="viewer" role="dialog" aria-label="Image viewer">
       <div class="viewer-bar">
+        <img class="viewer-logo" src="/nanoscout-logo-reversed.png" alt="NanoScout" />
         <span class="viewer-name">{file()?.name}</span>
-        <span class="viewer-count">
+        <span class="viewer-count mono">
           {index() + 1} / {files().length}
         </span>
-        <a class="viewer-btn" href={downloadUrl(props.fileKey)} download={file()?.name}>
+        <a class="viewer-btn primary" href={downloadUrl(props.fileKey)} download={file()?.name}>
           Download
         </a>
         <button class="viewer-btn" onClick={() => store.closeViewer()}>
@@ -80,22 +109,32 @@ export default function Viewer(props: { fileKey: string }) {
       <div
         ref={stage}
         class="viewer-stage"
-        classList={{ zoomed: scale() > 1, dragging: drag !== null }}
+        classList={{ zoomed: scale() > 1, dragging: drag() !== null }}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={() => (drag = null)}
+        onPointerUp={() => setDrag(null)}
+        onPointerCancel={() => setDrag(null)}
         onDblClick={reset}
       >
+        <Show when={failed()}>
+          <p class="viewer-error">Preview not available. The original can still be downloaded.</p>
+        </Show>
+        <Show when={!loaded() && !failed()}>
+          <img class="placeholder" src={thumbUrl(props.fileKey)} alt="" draggable={false} style={transform()} />
+        </Show>
         <img
+          classList={{ hidden: failed(), loading: !loaded() }}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
           src={previewUrl(props.fileKey)}
           alt={file()?.name ?? ""}
           draggable={false}
-          style={{ transform: `translate(${offset().x}px, ${offset().y}px) scale(${scale()})` }}
+          style={transform()}
         />
       </div>
       <button class="viewer-nav prev" disabled={index() <= 0} onClick={() => step(-1)} aria-label="Previous">
-        ‹
+        <PrevIcon size={22} />
       </button>
       <button
         class="viewer-nav next"
@@ -103,7 +142,7 @@ export default function Viewer(props: { fileKey: string }) {
         onClick={() => step(1)}
         aria-label="Next"
       >
-        ›
+        <NextIcon size={22} />
       </button>
     </div>
   );

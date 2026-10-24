@@ -1,6 +1,25 @@
 import { For } from "solid-js";
 import { thumbUrl } from "../api";
 import { isSelected, store } from "../store";
+import { FolderIcon } from "./Icons";
+
+/**
+ * A long name like "2026-10-19_miluda_5b_background_ns-lab_b001" has no spaces, so the browser
+ * cannot wrap it. <wbr> after each "_" and "-" allows a line break there without changing the
+ * text (copy and paste still give the exact name).
+ */
+function WrappableName(props: { name: string }) {
+  return (
+    <For each={props.name.split(/(?<=[_-])/)}>
+      {(part, i) => (
+        <>
+          {i() > 0 && <wbr />}
+          {part}
+        </>
+      )}
+    </For>
+  );
+}
 
 /** Large icons: a grid of thumbnails. Images load lazily, only when their tile scrolls into view. */
 export default function IconsView() {
@@ -18,8 +37,12 @@ export default function IconsView() {
             }}
             onDblClick={() => store.navigate(folder.prefix)}
           >
-            <div class="tile-image folder">📁</div>
-            <div class="tile-name">{folder.name}</div>
+            <div class="tile-image folder">
+              <FolderIcon size={64} />
+            </div>
+            <div class="tile-name">
+              <WrappableName name={folder.name} />
+            </div>
           </div>
         )}
       </For>
@@ -41,10 +64,12 @@ export default function IconsView() {
                 alt=""
                 loading="lazy"
                 decoding="async"
-                onError={(e) => e.currentTarget.classList.add("failed")}
+                onError={(e) => e.currentTarget.parentElement?.classList.add("failed")}
               />
             </div>
-            <div class="tile-name">{file.name}</div>
+            <div class="tile-name">
+              <WrappableName name={file.name} />
+            </div>
           </div>
         )}
       </For>

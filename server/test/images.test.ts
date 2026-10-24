@@ -61,3 +61,31 @@ test("variant files never look for .cache", async () => {
 test("missing TIFF is 404", async () => {
   await expect(render({})(raw, "thumb")).rejects.toMatchObject({ status: 404 });
 });
+
+test("a stalled B2 download fails with 502 instead of hanging", async () => {
+  const r = createImageRenderer({
+    b2: fakeB2({ [raw]: tiff }, { hang: true, timeoutMs: 50 }),
+    cache: createDiskCache(cacheDir),
+    limit: createLimiter(4),
+    convert: async () => Buffer.from("jpeg"),
+  });
+  await expect(r(raw, "thumb")).rejects.toMatchObject({ status: 502 });
+});
+
+test("two requests for the same image at once convert it only once", async () => {
+  const r = render({ [raw]: tiff });
+  const [a, b] = await Promise.all([r(raw, "preview"), r(raw, "preview")]);
+  expect(a.body.toString()).toBe("jpeg:1600");
+  expect(b.body.toString()).toBe("jpeg:1600");
+  expect(convertCalls).toBe(1);
+});
+
+test("a failing cache write still returns the rendered image", async () => {
+  const r = createImageRenderer({
+    b2: fakeB2({ [raw]: tiff }),
+    cache: { get: async () => null, put: async () => { throw new Error("EPERM: rename"); } },
+    limit: createLimiter(4),
+    convert: async () => Buffer.from("jpeg"),
+  });
+  expect((await r(raw, "thumb")).body.toString()).toBe("jpeg");
+});

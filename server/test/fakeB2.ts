@@ -9,7 +9,7 @@ export const testConfig = loadConfig(
   "/tmp",
 );
 
-type Options = { pageSize?: number; fail?: boolean };
+type Options = { pageSize?: number; fail?: boolean; hang?: boolean };
 
 function notFound(): Error {
   return Object.assign(new Error("NoSuchKey"), { name: "NoSuchKey", $metadata: { httpStatusCode: 404 } });
@@ -17,7 +17,8 @@ function notFound(): Error {
 
 /**
  * In-memory stand-in for the S3 client: answers the three read commands the app uses,
- * with real ListObjectsV2 paging (MaxKeys / ContinuationToken). `fail` simulates B2 being down.
+ * with real ListObjectsV2 paging (MaxKeys / ContinuationToken). `fail` simulates B2 being down;
+ * `hang` simulates a stalled connection: GetObject never answers until its abortSignal fires.
  */
 export function fakeS3(objects: Record<string, Buffer>, opts: Options = {}): S3Like & { calls: string[] } {
   const pageSize = opts.pageSize ?? 1000;
@@ -28,7 +29,14 @@ export function fakeS3(objects: Record<string, Buffer>, opts: Options = {}): S3L
 
   return {
     calls,
-    async send(command: unknown): Promise<any> {
+    async send(command: unknown, options?: { abortSignal?: AbortSignal }): Promise<any> {
+      if (opts.hang && command instanceof GetObjectCommand) {
+        await new Promise((_resolve, reject) => {
+          options?.abortSignal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("Request aborted"), { name: "AbortError" })),
+          );
+        });
+      }
       if (opts.fail) {
         throw Object.assign(new Error("getaddrinfo ENOTFOUND"), { name: "Error" });
       }
@@ -83,6 +91,6 @@ export function fakeS3(objects: Record<string, Buffer>, opts: Options = {}): S3L
 }
 
 /** The real createB2 code running on top of fakeS3. */
-export function fakeB2(objects: Record<string, Buffer>, opts: Options = {}): B2 {
-  return createB2(testConfig, fakeS3(objects, opts));
+export function fakeB2(objects: Record<string, Buffer>, opts: Options & { timeoutMs?: number } = {}): B2 {
+  return createB2(testConfig, fakeS3(objects, opts), { timeoutMs: opts.timeoutMs });
 }

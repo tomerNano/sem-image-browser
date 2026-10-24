@@ -10,6 +10,8 @@ export type Config = {
   host: string;
   port: number;
   cacheDir: string;
+  /** Local images.csv from a Registry clone; null when REGISTRY_CSV_PATH is not set. */
+  registryCsvPath: string | null;
 };
 
 type Env = Record<string, string | undefined>;
@@ -25,7 +27,7 @@ const REQUIRED = [
 /**
  * Build the app configuration from environment variables.
  * Error messages name the variables but never print their values (secrets).
- * A relative CACHE_DIR resolves against rootDir (the repository root).
+ * A relative CACHE_DIR or REGISTRY_CSV_PATH resolves against rootDir (the repository root).
  */
 export function loadConfig(env: Env, rootDir: string): Config {
   const missing = REQUIRED.filter((name) => !env[name]?.trim());
@@ -45,6 +47,7 @@ export function loadConfig(env: Env, rootDir: string): Config {
   }
 
   const cacheDir = env.CACHE_DIR?.trim() || ".cache-images";
+  const registryCsv = env.REGISTRY_CSV_PATH?.trim() || "";
 
   return {
     accessKeyId: env.AWS_ACCESS_KEY_ID!.trim(),
@@ -56,5 +59,6 @@ export function loadConfig(env: Env, rootDir: string): Config {
     host: env.HOST?.trim() || "127.0.0.1",
     port,
     cacheDir: path.isAbsolute(cacheDir) ? cacheDir : path.join(rootDir, cacheDir),
+    registryCsvPath: registryCsv ? path.resolve(rootDir, registryCsv) : null,
   };
 }

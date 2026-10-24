@@ -31,5 +31,6 @@ test("raw folder: hides .cache and non-TIFF, natural sort, carries batch date", 
     size: 5,
     uploaded: d.toISOString(),
     date: "2026-10-06",
+    meta: null,
   });
 });

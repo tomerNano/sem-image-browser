@@ -19,6 +19,12 @@ cp .env.example .env
 Fill `.env` with the **read-only** B2 application key (never the pipeline's key), the bucket, and
 `B2_RAW_PREFIX` (the folder that holds the batches, for example `SEM-DATA/yeast`). `.env` is gitignored.
 
+Optional: set `REGISTRY_CSV_PATH` to `catalog/yeast/images.csv` in a local clone of the Registry
+(`Nanoscout/data-registry`, branch `v1`). The GUI then shows field width, pixel size, instrument,
+detector, gold and more, with filters. The server re-reads the file when it changes, so a `git pull`
+in the clone is enough to update it. Without the variable, everything else works and the metadata
+shows "—".
+
 ## Run
 
 Development (hot reload; open http://localhost:5173):
@@ -44,7 +50,8 @@ npm -w server test
 
 - `server/`: Node + Express 5 + TypeScript. The only part that talks to B2, with read-only S3
   commands. `src/app.ts` (routes), `b2.ts` (B2 client), `keys.ts` (path rules), `listing.ts`,
-  `images.ts` + `convert.ts` + `cache.ts` + `limit.ts` (thumbnails and previews), `config.ts`.
+  `images.ts` + `convert.ts` + `cache.ts` + `limit.ts` (thumbnails and previews), `config.ts`,
+  `registry.ts` + `csv.ts` (Registry metadata).
 - `web/`: Vite + SolidJS + TypeScript. `src/store.ts` (app state), `src/api.ts`, `src/components/`.
 - `docs/learn/`: short notes explaining each part (Solid and Node ideas compared with React and Python).
 - `docs/superpowers/specs/`: the design. `.claude/plans/`: the build plan.
@@ -56,7 +63,8 @@ All `GET`, all keys must sit under `B2_RAW_PREFIX`:
 | Endpoint | Returns |
 |---|---|
 | `/api/root` | `{ prefix, name }` where browsing starts |
-| `/api/list?prefix=` | folders and TIFF files of one folder |
+| `/api/list?prefix=` | folders and TIFF files of one folder; each file has `meta` from the Registry or `null` |
+| `/api/registry` | `{ configured, loaded, rows, version, error }` of the Registry metadata |
 | `/api/thumb?key=` | thumbnail (pipeline `.cache` PNG, or JPEG converted from the TIFF) |
 | `/api/preview?key=` | JPEG, about 1600 px |
 | `/api/download?key=` | the original TIFF |

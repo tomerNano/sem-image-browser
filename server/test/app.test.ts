@@ -4,6 +4,7 @@ import path from "node:path";
 import request from "supertest";
 import { expect, test } from "vitest";
 import { createApp } from "../src/app.js";
+import { createRegistry } from "../src/registry.js";
 import { fakeB2, testConfig as config } from "./fakeB2.js";
 
 const p = "yeast/2026-10-06_b_ns-lab_b001/raw/";
@@ -92,4 +93,23 @@ test("502 with short message when B2 fails", async () => {
     .query({ prefix: "yeast/" });
   expect(res.status).toBe(502);
   expect(res.body).toEqual({ error: "B2 unavailable" });
+});
+
+test("listing adds Registry metadata by key, null for unknown files", async () => {
+  const csv = `image_id,b2_key,gold,field_width_um\nimg_1,${p}cell_1.tiff,true,100\n`;
+  const registry = createRegistry({ name: "memory", load: async () => ({ version: "1", text: csv }) }, 0);
+  const b2 = fakeB2({ [p + "cell_1.tiff"]: Buffer.from("x"), [p + "cell_2.tiff"]: Buffer.from("x") });
+  const res = await request(createApp({ config, b2, registry })).get("/api/list").query({ prefix: p });
+  expect(res.body.files[0].meta).toMatchObject({ imageId: "img_1", gold: "true", fieldWidthUm: 100 });
+  expect(res.body.files[1].meta).toBeNull();
+});
+
+test("a broken Registry never breaks the listing, and /api/registry reports it", async () => {
+  const registry = createRegistry({ name: "memory", load: async () => Promise.reject(new Error("down")) }, 0);
+  const app = createApp({ config, b2: fakeB2({ [p + "cell_1.tiff"]: Buffer.from("x") }), registry });
+  const list = await request(app).get("/api/list").query({ prefix: p });
+  expect(list.status).toBe(200);
+  expect(list.body.files[0].meta).toBeNull();
+  const status = await request(app).get("/api/registry");
+  expect(status.body).toMatchObject({ configured: true, loaded: false, error: "down" });
 });

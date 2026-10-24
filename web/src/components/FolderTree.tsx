@@ -2,7 +2,7 @@ import { createEffect, createResource, createSignal, For, Show } from "solid-js"
 import { listFolder } from "../api";
 import { inDateRange } from "../lib/rows";
 import { store } from "../store";
-import DateFilter from "./DateFilter";
+import { ChevronIcon, FolderIcon } from "./Icons";
 
 type NodeProps = { name: string; prefix: string; depth: number };
 
@@ -40,10 +40,12 @@ function TreeNode(props: NodeProps) {
             setExpanded((x) => !x);
           }}
         >
-          {expanded() ? "▾" : "▸"}
+          <ChevronIcon open={expanded()} />
         </button>
-        <span class="folder-icon">📁</span>
-        <span class="tree-name">{props.name}</span>
+        <FolderIcon />
+        <span class="tree-name" title={props.name}>
+          {props.name}
+        </span>
       </div>
       <Show when={expanded()}>
         <Show when={children.error}>
@@ -63,8 +65,10 @@ function TreeNode(props: NodeProps) {
 
 export default function FolderTree() {
   return (
-    <aside class="tree-pane">
-      <DateFilter />
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/nanoscout-logo-reversed.png" alt="NanoScout" />
+      </div>
       <ul class="tree">
         <TreeNode name={store.root().name} prefix={store.root().prefix} depth={0} />
       </ul>
