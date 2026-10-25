@@ -96,7 +96,8 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     const sendImage = (size: ImageSize) => async (req: Request, res: Response) => {
       const key = validateKey(req.query.key, config.rawPrefix);
       const image = await images(key, size);
-      res.set("Cache-Control", "private, max-age=86400").type(image.contentType).send(image.body);
+      // no-store: the browser keeps no copy of viewed images on the user's disk.
+      res.set("Cache-Control", "no-store").type(image.contentType).send(image.body);
     };
     app.get("/api/thumb", sendImage("thumb"));
     app.get("/api/preview", sendImage("preview"));

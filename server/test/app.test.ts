@@ -42,14 +42,14 @@ test("thumb rejects a key outside the raw prefix", async () => {
   expect(res.status).toBe(400);
 });
 
-test("preview returns the rendered JPEG with a private cache header", async () => {
+test("preview returns the rendered JPEG with a no-store cache header", async () => {
   const images = async () => ({ body: Buffer.from("jpeg"), contentType: "image/jpeg" as const });
   const res = await request(createApp({ config, b2: fakeB2({}), images }))
     .get("/api/preview")
     .query({ key: p + "cell_1.tiff" });
   expect(res.status).toBe(200);
   expect(res.headers["content-type"]).toBe("image/jpeg");
-  expect(res.headers["cache-control"]).toBe("private, max-age=86400");
+  expect(res.headers["cache-control"]).toBe("no-store");
 });
 
 test("download streams exact bytes with the original filename", async () => {
