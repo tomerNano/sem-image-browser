@@ -87,6 +87,19 @@ test("production mode serves the built web app and keeps /api 404s as JSON", asy
   expect(api.body).toEqual({ error: "Not found" });
 });
 
+test("every response carries the security headers", async () => {
+  const webDist = await mkdtemp(path.join(os.tmpdir(), "b2gui-web-"));
+  await writeFile(path.join(webDist, "index.html"), "<p>app</p>");
+  const app = createApp({ config, b2: fakeB2({}), webDist });
+  for (const url of ["/", "/api/root", "/api/nope"]) {
+    const res = await request(app).get(url);
+    expect(res.headers["content-security-policy"]).toContain("default-src 'self'");
+    expect(res.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+  }
+});
+
 test("502 with short message when B2 fails", async () => {
   const res = await request(createApp({ config, b2: fakeB2({}, { fail: true }) }))
     .get("/api/list")

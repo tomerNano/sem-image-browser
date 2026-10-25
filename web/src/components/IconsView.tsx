@@ -1,6 +1,6 @@
 import { For } from "solid-js";
 import { thumbUrl } from "../api";
-import { isSelected, store } from "../store";
+import { store } from "../store";
 import { FolderIcon } from "./Icons";
 
 /**
@@ -29,11 +29,11 @@ export default function IconsView() {
         {(folder) => (
           <div
             class="tile"
-            classList={{ selected: isSelected(folder.prefix) }}
+            classList={{ selected: store.isSelected(folder.prefix) }}
             title={folder.name}
             onClick={(e) => {
               e.stopPropagation();
-              store.select({ kind: "folder", entry: folder });
+              store.select(folder.prefix);
             }}
             onDblClick={() => store.navigate(folder.prefix)}
           >
@@ -50,17 +50,17 @@ export default function IconsView() {
         {(file) => (
           <div
             class="tile"
-            classList={{ selected: isSelected(file.key) }}
+            classList={{ selected: store.isSelected(file.key) }}
             title={file.name}
             onClick={(e) => {
               e.stopPropagation();
-              store.select({ kind: "file", entry: file });
+              store.select(file.key);
             }}
             onDblClick={() => store.openViewer(file.key)}
           >
             <div class="tile-image">
               <img
-                src={thumbUrl(file.key)}
+                src={thumbUrl(file.key, file.uploaded)}
                 alt=""
                 loading="lazy"
                 decoding="async"

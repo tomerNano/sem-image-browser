@@ -72,6 +72,17 @@ test("a stalled B2 download fails with 502 instead of hanging", async () => {
   await expect(r(raw, "thumb")).rejects.toMatchObject({ status: 502 });
 });
 
+test("a source above the size limit is refused", async () => {
+  const r = createImageRenderer({
+    b2: fakeB2({ [raw]: tiff }),
+    cache: createDiskCache(cacheDir),
+    limit: createLimiter(4),
+    convert: async () => Buffer.from("jpeg"),
+    maxSourceBytes: tiff.length - 1,
+  });
+  await expect(r(raw, "preview")).rejects.toMatchObject({ status: 422 });
+});
+
 test("two requests for the same image at once convert it only once", async () => {
   const r = render({ [raw]: tiff });
   const [a, b] = await Promise.all([r(raw, "preview"), r(raw, "preview")]);

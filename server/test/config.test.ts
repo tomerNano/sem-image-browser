@@ -31,6 +31,13 @@ test("rejects a non-numeric PORT", () => {
   expect(() => loadConfig({ ...full, PORT: "abc" }, "/app")).toThrow(/PORT/);
 });
 
+test("refuses a HOST other machines could reach (no sign-in yet)", () => {
+  expect(() => loadConfig({ ...full, HOST: "0.0.0.0" }, "/app")).toThrow(/HOST/);
+  expect(() => loadConfig({ ...full, HOST: "192.168.1.20" }, "/app")).toThrow(/HOST/);
+  expect(loadConfig({ ...full, HOST: "localhost" }, "/app").host).toBe("localhost");
+  expect(loadConfig({ ...full, HOST: "::1" }, "/app").host).toBe("::1");
+});
+
 test("strips slashes from B2_RAW_PREFIX", () => {
   expect(loadConfig({ ...full, B2_RAW_PREFIX: "/yeast/" }, "/app").rawPrefix).toBe("yeast");
 });

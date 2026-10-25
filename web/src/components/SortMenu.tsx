@@ -1,5 +1,5 @@
 import { For } from "solid-js";
-import { SORT_COLUMNS, type SortDir } from "../lib/rows";
+import { FIELDS, type SortDir } from "../lib/fields";
 import { store } from "../store";
 import { CheckIcon } from "./Icons";
 
@@ -13,7 +13,7 @@ export default function SortMenu() {
   return (
     <div class="menu">
       <span class="eyebrow menu-title">Sort by</span>
-      <For each={SORT_COLUMNS}>
+      <For each={FIELDS.filter((f) => f.column)}>
         {(col) => (
           <button class="menu-item" onClick={() => store.setSort(col.id, store.sortDir())}>
             <span class="menu-check">{store.sortColumn() === col.id && <CheckIcon />}</span>

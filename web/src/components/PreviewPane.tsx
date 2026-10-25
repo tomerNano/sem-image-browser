@@ -1,8 +1,9 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { downloadUrl, listFolder, previewUrl } from "../api";
-import { formatGold, formatMicrons, formatPixelSize, formatSize, itemCount } from "../lib/rows";
+import { FIELDS, type Field } from "../lib/fields";
+import { itemCount } from "../lib/rows";
 import { store } from "../store";
-import type { FileEntry, ImageMeta, ListResult } from "../types";
+import type { FileEntry, ListResult } from "../types";
 import { FolderIcon } from "./Icons";
 
 function lastPart(prefix: string): string {
@@ -10,32 +11,24 @@ function lastPart(prefix: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
-/** A number (at most 2 decimals) with its unit, or "—" when the Registry has no value. */
-function withUnit(n: number | null, unit: string): string {
-  return n === null ? "—" : `${Math.round(n * 100) / 100} ${unit}`;
-}
+/** Preview rows of one section, in table order. */
+const FILE_ROWS = FIELDS.filter((f) => f.preview === "file");
+const REGISTRY_ROWS = FIELDS.filter((f) => f.preview === "registry");
 
-/** Label/value pairs for the preview pane, in the order a biologist reads them. */
-function metaRows(m: ImageMeta): [string, string][] {
-  const fieldHeight = m.fieldHeightUm === null ? "" : ` × ${formatMicrons(m.fieldHeightUm)}`;
-  return [
-    ["Acquired", m.acquiredAt?.replace("T", " ") ?? "—"],
-    ["Field", formatMicrons(m.fieldWidthUm) + fieldHeight],
-    ["Pixel", formatPixelSize(m.pixelSizeUm)],
-    ["Image", m.widthPx !== null && m.heightPx !== null ? `${m.widthPx} × ${m.heightPx} px` : "—"],
-    ["Instrument", m.instrument || "—"],
-    ["Detector", m.detector || "—"],
-    ["Voltage", withUnit(m.voltageKv, "kV")],
-    ["WD", withUnit(m.workingDistanceMm, "mm")],
-    ["Dwell", withUnit(m.dwellTimeNs, "ns")],
-    ["Spot", m.spotSize === null ? "—" : String(Math.round(m.spotSize * 100) / 100)],
-    ["Integr.", m.integrations === null ? "—" : String(m.integrations)],
-    ["Gold", formatGold(m.gold)],
-    ["Experiment", m.experiment || "—"],
-    ["Source", m.source || "—"],
-    ["Variant", m.variant || "—"],
-    ["Image ID", m.imageId || "—"],
-  ];
+/** Label/value list of some Fields of one file. */
+function FieldRows(props: { fields: Field[]; file: FileEntry }) {
+  return (
+    <dl class="preview-meta">
+      <For each={props.fields}>
+        {(f) => (
+          <>
+            <dt class="eyebrow">{f.label}</dt>
+            <dd class="mono">{f.format(props.file)}</dd>
+          </>
+        )}
+      </For>
+    </dl>
+  );
 }
 
 function FilePreview(props: { file: FileEntry }) {
@@ -49,32 +42,14 @@ function FilePreview(props: { file: FileEntry }) {
           fallback={<span class="no-preview">Preview not available. The original can still be downloaded.</span>}
         >
           <span>Loading…</span>
-          <img src={previewUrl(props.file.key)} alt={props.file.name} onError={() => setFailed(true)} />
+          <img src={previewUrl(props.file.key, props.file.uploaded)} alt={props.file.name} onError={() => setFailed(true)} />
         </Show>
       </div>
       <h4>{props.file.name}</h4>
-      <dl class="preview-meta">
-        <dt class="eyebrow">Date</dt>
-        <dd class="mono">{props.file.date ?? "unknown"}</dd>
-        <dt class="eyebrow">Size</dt>
-        <dd class="mono">{formatSize(props.file.size)}</dd>
-      </dl>
+      <FieldRows fields={FILE_ROWS} file={props.file} />
       <Show when={props.file.meta} fallback={<p class="no-meta">No Registry metadata for this file.</p>}>
-        {(meta) => (
-          <>
-            <h5 class="eyebrow">Registry</h5>
-            <dl class="preview-meta">
-              <For each={metaRows(meta())}>
-                {([label, value]) => (
-                  <>
-                    <dt class="eyebrow">{label}</dt>
-                    <dd class="mono">{value}</dd>
-                  </>
-                )}
-              </For>
-            </dl>
-          </>
-        )}
+        <h5 class="eyebrow">Registry</h5>
+        <FieldRows fields={REGISTRY_ROWS} file={props.file} />
       </Show>
       <a class="download-btn" href={downloadUrl(props.file.key)} download={props.file.name}>
         Download

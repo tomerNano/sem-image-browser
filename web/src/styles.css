@@ -334,7 +334,7 @@ ul {
 }
 
 .date-filter,
-.meta-filters {
+.field-filters {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -342,7 +342,7 @@ ul {
 }
 
 .date-filter label,
-.meta-filters label {
+.field-filters label {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -350,8 +350,8 @@ ul {
 }
 
 .date-filter input,
-.meta-filters select,
-.meta-filters input {
+.field-filters select,
+.field-filters input {
   height: 30px;
   min-width: 0;
   padding: 0 8px;
@@ -360,16 +360,16 @@ ul {
   border-radius: 4px;
 }
 
-.meta-filters select {
+.field-filters select {
   width: 128px;
 }
 
-.meta-filters .range {
+.field-filters .range {
   display: flex;
   gap: 4px;
 }
 
-.meta-filters .range input {
+.field-filters .range input {
   width: 76px;
   font-size: 12px;
 }

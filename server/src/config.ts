@@ -24,6 +24,8 @@ const REQUIRED = [
   "B2_BUCKET",
 ] as const;
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
 /**
  * Build the app configuration from environment variables.
  * Error messages name the variables but never print their values (secrets).
@@ -46,6 +48,13 @@ export function loadConfig(env: Env, rootDir: string): Config {
     throw new Error("B2_RAW_PREFIX must not be empty");
   }
 
+  // There is no sign-in yet, so only this machine may connect. Remove this check together
+  // with adding Google sign-in (see authSlot in app.ts).
+  const host = env.HOST?.trim() || "127.0.0.1";
+  if (!LOOPBACK_HOSTS.has(host)) {
+    throw new Error("HOST must be a loopback address (127.0.0.1, ::1 or localhost) until sign-in exists");
+  }
+
   const cacheDir = env.CACHE_DIR?.trim() || ".cache-images";
   const registryCsv = env.REGISTRY_CSV_PATH?.trim() || "";
 
@@ -56,7 +65,7 @@ export function loadConfig(env: Env, rootDir: string): Config {
     region: env.B2_REGION!.trim(),
     bucket: env.B2_BUCKET!.trim(),
     rawPrefix,
-    host: env.HOST?.trim() || "127.0.0.1",
+    host,
     port,
     cacheDir: path.isAbsolute(cacheDir) ? cacheDir : path.join(rootDir, cacheDir),
     registryCsvPath: registryCsv ? path.resolve(rootDir, registryCsv) : null,

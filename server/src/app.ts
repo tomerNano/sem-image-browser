@@ -21,6 +21,29 @@ function requestLog(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
+// Everything the page needs comes from this server. Inline data: covers small assets Vite inlines.
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+/** Browser hardening headers on every response (API and built frontend). */
+function securityHeaders(_req: Request, res: Response, next: NextFunction): void {
+  res.set({
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Cross-Origin-Opener-Policy": "same-origin",
+  });
+  next();
+}
+
 /** Sign-in slot. Does nothing in the MVP; Google Workspace sign-in checks go here later. */
 function authSlot(_req: Request, _res: Response, next: NextFunction): void {
   next();
@@ -30,6 +53,7 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
   const app = express();
   app.disable("x-powered-by");
   app.use(requestLog);
+  app.use(securityHeaders);
   app.use("/api", authSlot);
 
   // Where browsing starts. The browser asks instead of hard-coding it, so B2_RAW_PREFIX

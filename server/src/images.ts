@@ -11,21 +11,33 @@ export type ImageRenderer = (key: string, size: ImageSize) => Promise<RenderedIm
 
 const MAX_SIDE: Record<ImageSize, number> = { thumb: 256, preview: 1600 };
 
-type Deps = { b2: B2; cache: DiskCache; limit: Limiter; convert?: typeof toJpeg };
+/**
+ * Largest source file this server downloads into memory to render. A 7680 x 5100 16-bit SEM TIFF
+ * is about 78 MB; with 4 renders at a time this keeps memory bounded. Downloads are not limited.
+ */
+export const MAX_SOURCE_BYTES = 512 * 1024 * 1024;
+
+type Deps = { b2: B2; cache: DiskCache; limit: Limiter; convert?: typeof toJpeg; maxSourceBytes?: number };
 
 /**
  * Thumbnail or preview of one TIFF. Uses the pipeline's ready-made PNGs in raw/.cache/ when
  * they exist (thumbnail served as is, full PNG resized); otherwise converts the TIFF itself.
  * Results are cached on disk by source key, size and ETag.
  */
-export function createImageRenderer({ b2, cache, limit, convert = toJpeg }: Deps): ImageRenderer {
+export function createImageRenderer({
+  b2,
+  cache,
+  limit,
+  convert = toJpeg,
+  maxSourceBytes = MAX_SOURCE_BYTES,
+}: Deps): ImageRenderer {
   // Renders in progress, by cache name: a second request for the same image waits for the first
   // (a double-click asks for the same preview from the preview pane and the viewer at once).
   const inFlight = new Map<string, Promise<Buffer>>();
 
   return async (key, size) => {
     let sourceKey = key;
-    let meta: { etag: string } | null = null;
+    let meta: { etag: string; size: number } | null = null;
     let passthrough = false;
 
     const sources = cacheSources(key);
@@ -46,6 +58,8 @@ export function createImageRenderer({ b2, cache, limit, convert = toJpeg }: Deps
     const name = cacheName(sourceKey, size, meta.etag, passthrough ? "png" : "jpg");
     const cached = await cache.get(name);
     if (cached) return { body: cached, contentType };
+
+    if (meta.size > maxSourceBytes) throw new HttpError(422, "Image too large to preview");
 
     let pending = inFlight.get(name);
     if (!pending) {

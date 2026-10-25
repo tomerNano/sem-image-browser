@@ -18,9 +18,10 @@ export default function Viewer(props: { fileKey: string }) {
   const [drag, setDrag] = createSignal<{ x: number; y: number; ox: number; oy: number } | null>(null);
   let stage!: HTMLDivElement;
 
-  const files = () => store.visibleFiles();
-  const index = () => files().findIndex((f) => f.key === props.fileKey);
-  const file = () => files()[index()];
+  // The store owns the position among the visible files; null only while this viewer closes.
+  const view = () => store.viewer();
+  const file = () => view()?.file;
+  const uploaded = () => file()?.uploaded ?? "";
 
   const reset = () => {
     setScale(1);
@@ -40,25 +41,18 @@ export default function Viewer(props: { fileKey: string }) {
 
   // Ask for the neighbours' previews now, so stepping finds them in the browser cache.
   createEffect(() => {
-    const i = index();
-    if (i < 0) return;
     for (const delta of PREFETCH) {
-      const neighbour = files()[i + delta];
-      if (neighbour) new Image().src = previewUrl(neighbour.key);
+      const neighbour = view()?.at(delta);
+      if (neighbour) new Image().src = previewUrl(neighbour.key, neighbour.uploaded);
     }
   });
 
   const transform = () => ({ transform: `translate(${offset().x}px, ${offset().y}px) scale(${scale()})` });
 
-  function step(delta: number) {
-    const next = files()[index() + delta];
-    if (next) store.openViewer(next.key);
-  }
-
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape") store.closeViewer();
-    else if (e.key === "ArrowRight") step(1);
-    else if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === "ArrowRight") store.stepViewer(1);
+    else if (e.key === "ArrowLeft") store.stepViewer(-1);
     else return;
     e.preventDefault();
   }
@@ -97,7 +91,7 @@ export default function Viewer(props: { fileKey: string }) {
         <img class="viewer-logo" src="/nanoscout-logo-reversed.png" alt="NanoScout" />
         <span class="viewer-name">{file()?.name}</span>
         <span class="viewer-count mono">
-          {index() + 1} / {files().length}
+          {(view()?.index ?? 0) + 1} / {view()?.count ?? 0}
         </span>
         <a class="viewer-btn primary" href={downloadUrl(props.fileKey)} download={file()?.name}>
           Download
@@ -121,27 +115,27 @@ export default function Viewer(props: { fileKey: string }) {
           <p class="viewer-error">Preview not available. The original can still be downloaded.</p>
         </Show>
         <Show when={!loaded() && !failed()}>
-          <img class="placeholder" src={thumbUrl(props.fileKey)} alt="" draggable={false} style={transform()} />
+          <img class="placeholder" src={thumbUrl(props.fileKey, uploaded())} alt="" draggable={false} style={transform()} />
         </Show>
         <img
           classList={{ hidden: failed(), loading: !loaded() }}
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          src={previewUrl(props.fileKey)}
+          src={previewUrl(props.fileKey, uploaded())}
           alt={file()?.name ?? ""}
           draggable={false}
           style={transform()}
         />
       </div>
-      <button class="viewer-nav prev" disabled={index() <= 0} onClick={() => step(-1)} aria-label="Previous">
+      <button
+        class="viewer-nav prev"
+        disabled={!view()?.at(-1)}
+        onClick={() => store.stepViewer(-1)}
+        aria-label="Previous"
+      >
         <PrevIcon size={22} />
       </button>
-      <button
-        class="viewer-nav next"
-        disabled={index() >= files().length - 1}
-        onClick={() => step(1)}
-        aria-label="Next"
-      >
+      <button class="viewer-nav next" disabled={!view()?.at(1)} onClick={() => store.stepViewer(1)} aria-label="Next">
         <NextIcon size={22} />
       </button>
     </div>

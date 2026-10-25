@@ -26,6 +26,13 @@ export async function getRegistryStatus(): Promise<RegistryStatus> {
 
 const keyUrl = (route: string) => (key: string) => `/api/${route}?key=${encodeURIComponent(key)}`;
 
-export const thumbUrl = keyUrl("thumb");
-export const previewUrl = keyUrl("preview");
+/**
+ * Image URLs carry the file's upload time (`v`). The browser caches images by URL, so a file
+ * replaced in B2 gets a new URL and never shows a stale copy. The server ignores `v`.
+ */
+const imageUrl = (route: string) => (key: string, uploaded: string) =>
+  `${keyUrl(route)(key)}&v=${encodeURIComponent(uploaded)}`;
+
+export const thumbUrl = imageUrl("thumb");
+export const previewUrl = imageUrl("preview");
 export const downloadUrl = keyUrl("download");

@@ -13,4 +13,9 @@ MVP: localhost only, no sign-in yet (later: company Google accounts + security r
 - Server tests: `npm -w server test -- <file>` (Vitest; in-memory fake S3 in `server/test/fakeB2.ts`).
 - Images: `.cache` PNGs from the pipeline when present, else sharp with `normalise()` (16-bit SEM);
   disk cache in `CACHE_DIR`, 4 conversions at a time.
+- Image properties (Fields, see `GLOSSARY.md`) are one table, `FIELDS` in `web/src/lib/fields.ts`:
+  Details columns, sort menu, filter panel and preview pane all read it.
+- Web state: `createStore(api)` in `web/src/store.ts` (the page passes `api.ts`; `store.test.ts`
+  passes an in-memory listing). Selection is an id; `selected()` and `viewer()` are only the
+  visible item, so filters and search can never leave a hidden item selected.
 - Learning notes for each built part: `docs/learn/`.

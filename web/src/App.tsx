@@ -21,7 +21,7 @@ export default function App() {
         </div>
         <StatusBar />
       </main>
-      <Show when={store.viewerKey()} keyed>
+      <Show when={store.viewer()?.file.key} keyed>
         {(key) => <Viewer fileKey={key} />}
       </Show>
     </div>
