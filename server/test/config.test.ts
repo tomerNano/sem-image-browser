@@ -14,6 +14,13 @@ test("applies defaults", () => {
   const c = loadConfig(full, "/app");
   expect(c).toMatchObject({ rawPrefix: "yeast", host: "127.0.0.1", port: 3000 });
   expect(c.cacheDir).toBe(path.join("/app", ".cache-images"));
+  expect(c.cacheMaxBytes).toBe(2048 * 1024 * 1024);
+});
+
+test("CACHE_MAX_MB sets the cache limit and must be a positive integer", () => {
+  expect(loadConfig({ ...full, CACHE_MAX_MB: "500" }, "/app").cacheMaxBytes).toBe(500 * 1024 * 1024);
+  expect(() => loadConfig({ ...full, CACHE_MAX_MB: "0" }, "/app")).toThrow(/CACHE_MAX_MB/);
+  expect(() => loadConfig({ ...full, CACHE_MAX_MB: "2GB" }, "/app")).toThrow(/CACHE_MAX_MB/);
 });
 
 test("names every missing variable and never prints values", () => {

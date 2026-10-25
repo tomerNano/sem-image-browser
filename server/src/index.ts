@@ -25,7 +25,7 @@ try {
 
 const b2 = createB2(config);
 const registry = createRegistry(config.registryCsvPath ? createFileSource(config.registryCsvPath) : null);
-const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir), limit: createLimiter(4) });
+const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir, config.cacheMaxBytes), limit: createLimiter(4) });
 // Production (`npm start` passes --production): this one process also serves web/dist.
 const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";
 const webDist = production ? path.join(repoRoot, "web", "dist") : undefined;

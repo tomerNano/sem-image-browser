@@ -10,6 +10,8 @@ export type Config = {
   host: string;
   port: number;
   cacheDir: string;
+  /** Disk cache size limit; above it the least recently used images are deleted. */
+  cacheMaxBytes: number;
   /** Local images.csv from a Registry clone; null when REGISTRY_CSV_PATH is not set. */
   registryCsvPath: string | null;
 };
@@ -56,6 +58,11 @@ export function loadConfig(env: Env, rootDir: string): Config {
   }
 
   const cacheDir = env.CACHE_DIR?.trim() || ".cache-images";
+  const cacheMaxMbText = env.CACHE_MAX_MB?.trim() || "2048";
+  const cacheMaxMb = Number(cacheMaxMbText);
+  if (!Number.isInteger(cacheMaxMb) || cacheMaxMb < 1) {
+    throw new Error("CACHE_MAX_MB must be a positive integer (megabytes)");
+  }
   const registryCsv = env.REGISTRY_CSV_PATH?.trim() || "";
 
   return {
@@ -68,6 +75,7 @@ export function loadConfig(env: Env, rootDir: string): Config {
     host,
     port,
     cacheDir: path.isAbsolute(cacheDir) ? cacheDir : path.join(rootDir, cacheDir),
+    cacheMaxBytes: cacheMaxMb * 1024 * 1024,
     registryCsvPath: registryCsv ? path.resolve(rootDir, registryCsv) : null,
   };
 }
