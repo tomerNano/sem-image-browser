@@ -44,6 +44,22 @@ function securityHeaders(_req: Request, res: Response, next: NextFunction): void
   next();
 }
 
+// Host names this server answers to. Any port is accepted: in development the Vite proxy
+// forwards "localhost:5173" unchanged. Add the server's domain here when it is deployed.
+const ALLOWED_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Blocks DNS rebinding: a malicious website points its own domain at 127.0.0.1 and then reads
+ * this API from the user's browser. Such requests still carry the attacker's host name.
+ */
+function hostCheck(req: Request, _res: Response, next: NextFunction): void {
+  if (!ALLOWED_HOSTS.has(req.hostname ?? "")) {
+    next(new HttpError(403, "Host not allowed"));
+    return;
+  }
+  next();
+}
+
 /** Sign-in slot. Does nothing in the MVP; Google Workspace sign-in checks go here later. */
 function authSlot(_req: Request, _res: Response, next: NextFunction): void {
   next();
@@ -54,6 +70,7 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
   app.disable("x-powered-by");
   app.use(requestLog);
   app.use(securityHeaders);
+  app.use(hostCheck);
   app.use("/api", authSlot);
 
   // Where browsing starts. The browser asks instead of hard-coding it, so B2_RAW_PREFIX

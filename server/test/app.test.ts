@@ -126,3 +126,14 @@ test("a broken Registry never breaks the listing, and /api/registry reports it",
   const status = await request(app).get("/api/registry");
   expect(status.body).toMatchObject({ configured: true, loaded: false, error: "down" });
 });
+
+test("rejects requests for any other host name (DNS rebinding)", async () => {
+  const app = createApp({ config, b2: fakeB2({}) });
+  const blocked = await request(app).get("/api/root").set("Host", "attacker.example:3000");
+  expect(blocked.status).toBe(403);
+  expect(blocked.body).toEqual({ error: "Host not allowed" });
+  // The Vite dev proxy forwards the browser's host and port unchanged.
+  for (const host of ["localhost:5173", "127.0.0.1:3000", "[::1]:3000"]) {
+    expect((await request(app).get("/api/root").set("Host", host)).status).toBe(200);
+  }
+});
