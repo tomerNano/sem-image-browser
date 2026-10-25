@@ -81,3 +81,26 @@ export const CheckIcon = (props: IconProps) => (
     <path d="m5 12 5 5 9-10" />
   </Svg>
 );
+
+/** Side panel: a window with its left column marked, the sidebar toggle. */
+export const PanelIcon = (props: IconProps) => (
+  <Svg size={props.size}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M9 4v16" />
+  </Svg>
+);
+
+/** House: go to the top folder, where the batches are. */
+export const HomeIcon = (props: IconProps) => (
+  <Svg size={props.size}>
+    <path d="M4 11 12 4l8 7M6 9.5V20h4.5v-5h3v5H18V9.5" />
+  </Svg>
+);
+
+/** Two sheets: copy to the clipboard. */
+export const CopyIcon = (props: IconProps) => (
+  <Svg size={props.size}>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" />
+  </Svg>
+);

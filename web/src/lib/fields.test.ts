@@ -1,6 +1,17 @@
 import { describe, expect, test } from "vitest";
 import type { FileEntry, ImageMeta } from "../types";
-import { activeFilterCount, choices, field, FIELDS, matchesFilters, MISSING, NO_FILTERS, sortFiles, type FieldId } from "./fields";
+import {
+  activeFilterCount,
+  choices,
+  field,
+  FIELDS,
+  filterSummary,
+  matchesFilters,
+  MISSING,
+  NO_FILTERS,
+  sortFiles,
+  type FieldId,
+} from "./fields";
 
 const SAMPLE: ImageMeta = {
   imageId: "img_1",
@@ -35,6 +46,11 @@ const file = (name: string, m: ImageMeta | null, extra: Partial<FileEntry> = {})
   ...extra,
 });
 
+// The upload time shows in the local time zone, as "YYYY-MM-DD HH:MM".
+const up = new Date("2026-10-19T09:00:00Z");
+const pad = (n: number) => String(n).padStart(2, "0");
+const LOCAL_UPLOAD = `${up.getFullYear()}-${pad(up.getMonth() + 1)}-${pad(up.getDate())} ${pad(up.getHours())}:${pad(up.getMinutes())}`;
+
 describe("each Field formats a sample file and a file without a Registry row", () => {
   const expected: Record<FieldId, [string, string]> = {
     name: ["cell_1.tiff", "cell_1.tiff"],
@@ -57,7 +73,7 @@ describe("each Field formats a sample file and a file without a Registry row", (
     source: ["termo", MISSING],
     variant: ["raw", MISSING],
     imageId: ["img_1", MISSING],
-    uploaded: [new Date("2026-10-19T09:00:00Z").toLocaleString(), new Date("2026-10-19T09:00:00Z").toLocaleString()],
+    uploaded: [LOCAL_UPLOAD, LOCAL_UPLOAD],
   };
   test.each(FIELDS.map((f) => f.id))("%s", (id) => {
     const [withMeta, withoutMeta] = expected[id];
@@ -126,4 +142,12 @@ test("name sorts in natural order; ties on other Fields fall back to the name", 
   const files = [file("cell_10", null), file("cell_2", null), file("cell_1", null)];
   expect(sortFiles(files, "name", "asc").map((f) => f.name)).toEqual(["cell_1", "cell_2", "cell_10"]);
   expect(sortFiles(files, "size", "desc").map((f) => f.name)).toEqual(["cell_1", "cell_2", "cell_10"]);
+});
+
+test("filter chips: choice value, or range bounds with the unit", () => {
+  expect(filterSummary(field("detector"), "sed")).toBe("sed");
+  expect(filterSummary(field("fieldWidth"), { min: "50", max: "100" })).toBe("50–100 µm");
+  expect(filterSummary(field("fieldWidth"), { min: "50", max: "" })).toBe("≥ 50 µm");
+  expect(filterSummary(field("fieldWidth"), { min: "", max: "100" })).toBe("≤ 100 µm");
+  expect(filterSummary(field("gold"), "")).toBeNull();
 });

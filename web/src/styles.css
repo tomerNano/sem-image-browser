@@ -65,22 +65,45 @@ ul {
   font-size: 12px;
 }
 
+/* Small labels: sentence case and muted, never letter-spaced capitals. */
 .eyebrow {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* Layout: sidebar | splitter | main (toolbar, tabs, workspace, status bar). */
 .app {
   display: grid;
-  grid-template-columns: var(--tree-width, 360px) 4px 1fr;
+  grid-template-columns: var(--tree-width, 300px) 4px 1fr;
   height: 100vh;
+}
+
+/* Closed sidebar: a narrow rail that keeps the emblem and the toggle. */
+.app.sidebar-closed {
+  grid-template-columns: 56px 1fr;
+}
+
+.app.sidebar-closed > .splitter,
+.app.sidebar-closed .tree,
+.app.sidebar-closed .brand-logo {
+  display: none;
+}
+
+.app.sidebar-closed .sidebar {
+  overflow: hidden;
+}
+
+.app.sidebar-closed .brand {
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 0;
 }
 
 .main {
   display: grid;
+  /* minmax(0, 1fr): long crumbs or a wide table scroll inside, never widen the page. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto 1fr auto;
   min-width: 0;
   min-height: 0;
@@ -88,7 +111,8 @@ ul {
 
 .workspace {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  /* The preview pane keeps the width the user dragged, but always leaves the images 280 px. */
+  grid-template-columns: minmax(0, 1fr) 4px min(var(--pane-width, 340px), calc(100% - 284px));
   min-height: 0;
 }
 
@@ -111,13 +135,35 @@ ul {
 }
 
 .brand {
-  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 10px 14px 16px;
   border-bottom: 1px solid var(--sidebar-line);
+}
+
+.brand .sidebar-toggle {
+  color: var(--sidebar-text);
+}
+
+.brand .sidebar-toggle:hover {
+  color: #fff;
+  background: var(--sidebar-hover);
 }
 
 .brand img {
   display: block;
   height: 24px;
+}
+
+.brand .brand-mark {
+  display: none;
+  height: 28px;
+}
+
+.app.sidebar-closed .brand-mark {
+  display: block;
 }
 
 .tree {
@@ -199,7 +245,7 @@ ul {
 }
 
 .address {
-  flex: 1;
+  flex: 1 1 160px;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -227,6 +273,9 @@ ul {
 }
 
 .search {
+  /* Shrinks before the folder path does. */
+  flex: 0 1 220px;
+  min-width: 110px;
   width: 220px;
   height: 32px;
   padding: 0 10px;
@@ -235,12 +284,82 @@ ul {
   border-radius: 6px;
 }
 
-/* View tabs: underline on the active one. */
-.tabs {
+/* View tabs (underline on the active one), then the active filter chips. */
+.tabs-row {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 16px;
   margin: 12px 24px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.tabs {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-self: stretch;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+  padding: 4px 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+}
+
+.chip-label {
+  color: var(--muted);
+}
+
+.chip-value {
+  font-weight: 600;
+}
+
+.chip-remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+
+.chip-remove:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.chips-clear {
+  padding: 4px 6px;
+  color: var(--accent);
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+
+.chips-clear:hover {
+  background: var(--accent-soft);
 }
 
 .tabs button {
@@ -389,7 +508,7 @@ ul {
 .file-area {
   position: relative;
   overflow: auto;
-  padding: 16px 24px;
+  padding: 16px 20px 16px 24px;
 }
 
 .error {
@@ -402,6 +521,32 @@ ul {
   margin-top: 48px;
   color: var(--muted);
   text-align: center;
+}
+
+.empty p {
+  margin: 0;
+}
+
+.empty > p:first-child {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.empty .empty-detail {
+  margin-top: 4px;
+}
+
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.empty-actions .action {
+  flex: none;
+  padding: 0 16px;
 }
 
 /* Files and folders act like Explorer items: arrow cursor, double-click opens without selecting text. */
@@ -424,10 +569,11 @@ ul {
 }
 
 .details th {
+  white-space: nowrap;
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 10px;
+  padding: 10px 5px;
   text-align: left;
   color: var(--muted);
   background: var(--surface);
@@ -441,9 +587,19 @@ ul {
 }
 
 .details td {
-  padding: 8px 10px;
+  padding: 8px 5px;
   white-space: nowrap;
   border-bottom: 1px solid var(--border);
+}
+
+.details th:first-child,
+.details td:first-child {
+  padding-left: 8px;
+}
+
+.details th:last-child,
+.details td:last-child {
+  padding-right: 8px;
 }
 
 .details td.num {
@@ -473,107 +629,260 @@ ul {
   color: var(--accent);
 }
 
-/* Large icons */
+/* Large icons: a contact sheet. Micrographs sit on true black, as on the microscope screen. */
+/* 132 px slots for the pipeline thumbnails (about 100 x 63 px), shown at their real size. */
 .icons {
+  --tile-size: 132px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, var(--tile-size));
+  gap: 20px 16px;
 }
 
 .tile {
-  padding: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  min-width: 0;
+  /* Room for the selection ring: content-visibility clips paint at the tile edge. */
+  padding: 4px;
   /* The browser skips layout and paint for tiles far off-screen: smooth with 1,000 files. */
   content-visibility: auto;
-  contain-intrinsic-size: 140px 160px;
+  contain-intrinsic-size: auto var(--tile-size) auto calc(var(--tile-size) * 0.625 + 44px);
 }
 
-.tile:hover {
-  border-color: #c7cdf9;
+/* A fixed 16:10 slot so captions line up; the thumbnail sits in it with no box around it. */
+.frame {
+  display: grid;
+  /* Left edge lines up with the caption under it. */
+  place-items: center start;
+  aspect-ratio: 16 / 10;
+  border-radius: 3px;
 }
 
-.tile.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+.frame.folder,
+.frame.skeleton,
+.frame.failed {
+  place-items: center;
 }
 
-.tile-image {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 116px;
-  overflow: hidden;
-  background: var(--bg);
-  border-radius: 4px;
-}
-
-.tile-image.folder {
-  color: var(--accent);
-  background: transparent;
-}
-
-.tile-image img {
+/* Real size, never enlarged: a stretched small thumbnail looks blurry. Larger ones shrink to fit. */
+.frame img {
+  display: block;
+  border-radius: 2px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   max-width: 100%;
   max-height: 100%;
 }
 
-/* No thumbnail (conversion failed or B2 unreachable): say so instead of an empty box. */
-.tile-image.failed img {
+.frame.folder {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+.tile:hover .frame img,
+.tile:hover .frame.folder {
+  outline-color: #c7cdf9;
+}
+
+.tile.selected .frame img,
+.tile.selected .frame.folder {
+  outline-color: var(--accent);
+}
+
+/* No thumbnail (conversion failed or B2 unreachable): say so instead of an empty slot. */
+.frame.failed {
+  background: #e3e5ea;
+}
+
+.frame.failed img {
   display: none;
 }
 
-.tile-image.failed::after {
+.frame.failed::after {
   content: "No preview";
-  color: var(--muted);
-  font-size: 11px;
+  color: #9aa0b4;
+  font-size: 12px;
 }
 
-/* Up to 3 lines (breaks after "_" and "-"); the selected tile shows the whole name. */
-.tile-name {
-  display: -webkit-box;
+/* Name, then field width under it: the same two lines on every tile. */
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   margin-top: 6px;
+}
+
+/* Up to 2 lines (breaks after "_" and "-"); the selected tile shows the whole name. */
+.caption-name {
+  display: -webkit-box;
+  min-width: 0;
   overflow: hidden;
-  text-align: center;
+  font-weight: 500;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
-.tile.selected .tile-name {
+.tile.selected .caption-name {
   display: block;
+  color: var(--accent);
+  font-weight: 600;
 }
 
-/* Preview pane */
+.caption-value {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Skeleton frames while a folder loads. */
+.frame.skeleton {
+  background: #e3e5ea;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.caption.skeleton {
+  width: 60%;
+  height: 12px;
+  background: #e3e5ea;
+  border-radius: 3px;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame.skeleton {
+    animation: none;
+  }
+}
+
+/* Preview pane: black-matted image, name, actions, then grouped details. */
 .preview-pane {
   overflow: auto;
-  padding: 16px;
+  padding: 18px 20px 24px;
   background: var(--surface);
   border-left: 1px solid var(--border);
 }
 
-.preview-pane h4 {
-  margin: 12px 0 8px;
+.preview-frame {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  color: #9aa0b4;
+  background: #000000;
+  border-radius: 3px;
+}
+
+.preview-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview-frame.folder {
+  color: var(--accent);
+  background: var(--bg);
+}
+
+.no-preview {
+  padding: 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.preview-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+}
+
+.preview-title h4 {
+  margin: 0;
   font-size: 15px;
   font-weight: 700;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
-.preview-pane h5 {
-  margin: 16px 0 6px;
+.copy-name {
+  flex: none;
+  width: 28px;
+  height: 28px;
   color: var(--muted);
 }
 
-.preview-pane p {
-  margin: 2px 0;
+.preview-pane > p {
+  margin: 2px 0 0;
   color: var(--muted);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+.action {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.action:hover {
+  border-color: #c7cdf9;
+}
+
+.action.primary {
+  color: #ffffff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.action.primary:hover {
+  background: #4a69e8;
+}
+
+kbd {
+  padding: 0 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.75;
+}
+
+.preview-group {
+  margin-top: 18px;
+}
+
+.preview-group h5 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .preview-meta {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 116px 1fr;
   gap: 4px 12px;
   margin: 0;
 }
@@ -584,64 +893,13 @@ ul {
 
 .preview-meta dd {
   margin: 0;
-}
-
-.preview-image,
-.preview-folder {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: var(--bg);
-  border-radius: 6px;
-}
-
-.preview-image {
-  min-height: 180px;
-}
-
-.preview-folder {
-  min-height: 140px;
-  color: var(--accent);
-}
-
-.preview-image span {
-  position: absolute;
-  color: var(--muted);
-}
-
-.preview-image img {
-  position: relative;
-  display: block;
-  max-width: 100%;
-}
-
-.no-preview {
-  padding: 12px;
-  color: var(--muted);
-  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .no-meta {
-  margin-top: 12px !important;
+  margin: 16px 0 0;
+  color: var(--muted);
   font-size: 12px;
-}
-
-.download-btn {
-  display: block;
-  margin-top: 16px;
-  padding: 9px;
-  color: #ffffff;
-  font-weight: 600;
-  text-align: center;
-  text-decoration: none;
-  background: var(--accent);
-  border-radius: 6px;
-}
-
-.download-btn:hover {
-  background: #4a69e8;
 }
 
 /* Status bar: mono text on the left, listing state pill on the right. */
@@ -662,13 +920,25 @@ ul {
   font-weight: 600;
 }
 
-.status-pill {
+.status-hints {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
+  color: var(--muted);
+  font-family: var(--sans);
+}
+
+.status-hints kbd + kbd,
+.status-hints kbd:not(:first-child) {
+  margin-left: 8px;
+}
+
+.status-pill {
   padding: 1px 8px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   background: var(--bg);
   border-radius: 4px;
 }
@@ -818,4 +1088,92 @@ ul {
   justify-content: center;
   margin: 0;
   color: var(--sidebar-text);
+}
+
+/* SEM-style data bar under the viewer image: live scale bar, then acquisition values. */
+.viewer-stage {
+  background: #000000;
+}
+
+.data-bar {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  min-height: 58px;
+  padding: 10px 22px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: #0b0d16;
+  border-top: 1px solid var(--sidebar-line);
+}
+
+.scale-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 96px;
+}
+
+.scale-bar-line {
+  height: 6px;
+  border: 2px solid #ffffff;
+  border-top: 0;
+}
+
+.scale-bar span,
+.data-value b {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.data-value {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.data-value span,
+.data-bar-empty,
+.data-bar-hint {
+  color: #7d849f;
+  font-family: var(--sans);
+  font-size: 11.5px;
+}
+
+.data-bar-hint {
+  margin-left: auto;
+}
+
+/* Batch rows in the tree: the acquisition date first, quiet, then the rest of the name. */
+.tree-date {
+  flex: none;
+  color: #7a81a0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.tree-row:hover .tree-date,
+.tree-row.current .tree-date {
+  color: var(--sidebar-text);
+}
+
+/* Narrow windows: a slimmer preview pane, then none, so the images keep their room. */
+@media (max-width: 1200px) {
+  .preview-meta {
+    grid-template-columns: 96px 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .preview-pane,
+  .workspace > .splitter,
+  .status-hints {
+    display: none;
+  }
+
 }

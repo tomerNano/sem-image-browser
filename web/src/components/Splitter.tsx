@@ -1,64 +1,101 @@
-import { createSignal } from "solid-js";
+import { createSignal, type Accessor } from "solid-js";
 
-const MIN = 200;
-const MAX = 640;
-const DEFAULT = 360;
-const STORAGE_KEY = "treeWidth";
+/** A panel width the user drags, kept between `min` and `max` and remembered for the next visit. */
+export type DragWidth = {
+  width: Accessor<number>;
+  set(px: number): void;
+  save(): void;
+  reset(): void;
+};
 
-function clamp(px: number): number {
-  return Math.min(MAX, Math.max(MIN, Math.round(px)));
-}
-
-/** Saved width from an earlier visit. Storage can be blocked (private window), so it is optional. */
-function savedWidth(): number {
+function createDragWidth(key: string, min: number, max: number, initial: number): DragWidth {
+  const clamp = (px: number) => Math.min(max, Math.max(min, Math.round(px)));
+  // Storage can be blocked (private window), so the saved width is optional.
+  let saved = initial;
   try {
-    const n = Number(localStorage.getItem(STORAGE_KEY));
-    return n ? clamp(n) : DEFAULT;
+    const n = Number(localStorage.getItem(key));
+    if (n) saved = clamp(n);
   } catch {
-    return DEFAULT;
+    // Use the initial width.
   }
-}
-
-const [treeWidth, setTreeWidth] = createSignal(savedWidth());
-export { treeWidth };
-
-/**
- * Drag handle between the folder tree and the file area, like Explorer's. Pointer capture keeps
- * the drag going when the mouse moves faster than the handle. Double-click resets the width.
- */
-export default function Splitter() {
-  let startX = 0;
-  let startWidth = 0;
-
+  const [width, setWidth] = createSignal(saved);
   const save = () => {
     try {
-      localStorage.setItem(STORAGE_KEY, String(treeWidth()));
+      localStorage.setItem(key, String(width()));
     } catch {
       // Not saved; the width still applies until the page reloads.
     }
   };
+  return {
+    width,
+    set: (px) => setWidth(clamp(px)),
+    save,
+    reset: () => {
+      setWidth(initial);
+      save();
+    },
+  };
+}
+
+/** Folder tree on the left, preview pane on the right. */
+export const tree = createDragWidth("treeWidth", 200, 640, 300);
+export const pane = createDragWidth("previewWidth", 260, 760, 340);
+export const treeWidth = tree.width;
+
+const OPEN_KEY = "sidebarOpen";
+
+/** Whether the sidebar was open on an earlier visit (open unless closed on purpose). */
+function savedOpen(): boolean {
+  try {
+    return localStorage.getItem(OPEN_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+const [sidebarOpen, setSidebarOpen] = createSignal(savedOpen());
+export { sidebarOpen };
+
+/** Show or hide the sidebar (folder tree and brand), and remember it for the next visit. */
+export function toggleSidebar(): void {
+  setSidebarOpen((open) => !open);
+  try {
+    localStorage.setItem(OPEN_KEY, String(sidebarOpen()));
+  } catch {
+    // Not saved; the choice still applies until the page reloads.
+  }
+}
+
+/**
+ * Drag handle between two panels, like Explorer's. `side` says where the resized panel is:
+ * "left" grows when dragged right (the tree), "right" grows when dragged left (the preview pane).
+ * Pointer capture keeps the drag going when the mouse moves faster than the handle.
+ * Double-click resets the width.
+ */
+export default function Splitter(props: { target: DragWidth; side: "left" | "right"; label: string }) {
+  let startX = 0;
+  let startWidth = 0;
 
   return (
     <div
       class="splitter"
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize folder tree"
+      aria-label={props.label}
       title="Drag to resize, double-click to reset"
       onPointerDown={(e) => {
         startX = e.clientX;
-        startWidth = treeWidth();
+        startWidth = props.target.width();
         e.currentTarget.setPointerCapture(e.pointerId);
       }}
       onPointerMove={(e) => {
-        if (e.currentTarget.hasPointerCapture(e.pointerId)) setTreeWidth(clamp(startWidth + e.clientX - startX));
+        if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        const dx = e.clientX - startX;
+        props.target.set(props.side === "left" ? startWidth + dx : startWidth - dx);
       }}
-      onPointerUp={save}
-      onPointerCancel={save}
-      onDblClick={() => {
-        setTreeWidth(DEFAULT);
-        save();
-      }}
+      onPointerUp={() => props.target.save()}
+      onPointerCancel={() => props.target.save()}
+      onDblClick={() => props.target.reset()}
     />
   );
 }

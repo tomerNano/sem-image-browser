@@ -27,6 +27,9 @@ export default function StatusBar() {
         </Show>
       </span>
       <Show when={registryWarning()}>{(w) => <span class="status-warning">{w()}</span>}</Show>
+      <span class="status-hints">
+        <kbd>← ↑ → ↓</kbd> move <kbd>Enter</kbd> open <kbd>Backspace</kbd> up
+      </span>
       <span class={`status-pill ${listingState()}`}>{listingState()}</span>
     </footer>
   );

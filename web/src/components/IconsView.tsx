@@ -1,5 +1,6 @@
-import { For } from "solid-js";
+import { For, Show } from "solid-js";
 import { thumbUrl } from "../api";
+import { field, MISSING } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon } from "./Icons";
 
@@ -21,7 +22,12 @@ function WrappableName(props: { name: string }) {
   );
 }
 
-/** Large icons: a grid of thumbnails. Images load lazily, only when their tile scrolls into view. */
+const fieldWidth = field("fieldWidth");
+
+/**
+ * Large icons: a contact sheet. Each micrograph shows at its real size in a 16:10 slot, with
+ * its name and field width under it. Images load lazily, only when their frame scrolls into view.
+ */
 export default function IconsView() {
   return (
     <div class="icons">
@@ -30,6 +36,7 @@ export default function IconsView() {
           <div
             class="tile"
             classList={{ selected: store.isSelected(folder.prefix) }}
+            data-id={folder.prefix}
             title={folder.name}
             onClick={(e) => {
               e.stopPropagation();
@@ -37,11 +44,13 @@ export default function IconsView() {
             }}
             onDblClick={() => store.navigate(folder.prefix)}
           >
-            <div class="tile-image folder">
-              <FolderIcon size={64} />
+            <div class="frame folder">
+              <FolderIcon size={48} />
             </div>
-            <div class="tile-name">
-              <WrappableName name={folder.name} />
+            <div class="caption">
+              <span class="caption-name">
+                <WrappableName name={folder.name} />
+              </span>
             </div>
           </div>
         )}
@@ -51,6 +60,7 @@ export default function IconsView() {
           <div
             class="tile"
             classList={{ selected: store.isSelected(file.key) }}
+            data-id={file.key}
             title={file.name}
             onClick={(e) => {
               e.stopPropagation();
@@ -58,7 +68,7 @@ export default function IconsView() {
             }}
             onDblClick={() => store.openViewer(file.key)}
           >
-            <div class="tile-image">
+            <div class="frame">
               <img
                 src={thumbUrl(file.key, file.uploaded)}
                 alt=""
@@ -67,8 +77,13 @@ export default function IconsView() {
                 onError={(e) => e.currentTarget.parentElement?.classList.add("failed")}
               />
             </div>
-            <div class="tile-name">
-              <WrappableName name={file.name} />
+            <div class="caption">
+              <span class="caption-name">
+                <WrappableName name={file.name} />
+              </span>
+              <Show when={fieldWidth.format(file) !== MISSING}>
+                <span class="caption-value mono">{fieldWidth.format(file)}</span>
+              </Show>
             </div>
           </div>
         )}

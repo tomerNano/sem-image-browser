@@ -47,7 +47,6 @@ export function parentPrefix(prefix: string, rootPrefix: string): string {
 export function createStore(api: StoreApi) {
   const [root, setRoot] = createSignal<Root>({ prefix: "", name: "" });
   const [currentPrefix, setCurrentPrefix] = createSignal("");
-  const [history, setHistory] = createSignal<string[]>([]);
   // The selected item's id: a folder prefix (ends with "/") or a file key.
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
   const [view, setView] = createSignal<ViewMode>("icons");
@@ -67,29 +66,24 @@ export function createStore(api: StoreApi) {
   // Asked once per page load; the server re-reads the Registry file by itself when it changes.
   const [registry] = createResource(() => api.getRegistryStatus());
 
-  /** Called once at startup with the server's root. */
-  function init(r: Root) {
+  /**
+   * Called once at startup with the server's root, and the folder to open first (from the
+   * page address); a start outside the root opens the root.
+   */
+  function init(r: Root, start: string = r.prefix) {
     setRoot(r);
-    setCurrentPrefix(r.prefix);
+    setCurrentPrefix(start.startsWith(r.prefix) && start.endsWith("/") ? start : r.prefix);
   }
 
-  function go(prefix: string) {
+  /**
+   * Open a folder: clears the selection and the search. Back and forward are the browser's
+   * own history (see history.ts), so the store keeps no back list.
+   */
+  function navigate(prefix: string) {
+    if (prefix === currentPrefix()) return;
     setCurrentPrefix(prefix);
     setSelectedId(null);
     setSearch("");
-  }
-
-  function navigate(prefix: string) {
-    if (prefix === currentPrefix()) return;
-    setHistory((h) => [...h, currentPrefix()]);
-    go(prefix);
-  }
-
-  function back() {
-    const h = history();
-    if (h.length === 0) return;
-    setHistory(h.slice(0, -1));
-    go(h[h.length - 1]);
   }
 
   function up() {
@@ -192,9 +186,7 @@ export function createStore(api: StoreApi) {
     closeViewer: () => setViewerKey(null),
     currentPrefix,
     navigate,
-    back,
     up,
-    canBack: () => history().length > 0,
     canUp: () => currentPrefix() !== root().prefix,
     listing,
     selected,

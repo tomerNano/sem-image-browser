@@ -66,7 +66,7 @@ test("a search that hides the selected folder leaves nothing selected", async ()
 test("going to another folder clears the selection", async () => {
   const s = await storeAt(raw);
   s.select(key("cell_1.tiff"));
-  s.back();
+  s.navigate("yeast/");
   await loaded();
   s.navigate(raw);
   await loaded();
@@ -105,4 +105,18 @@ test("the viewer does not open on a hidden file", async () => {
   s.openViewer(key("cell_2.tiff"));
   expect(s.viewer()).toBeNull();
   expect(s.selected()).toBeNull();
+});
+
+test("init opens the start folder from the address, or the root when it is not inside it", () => {
+  const s = createRoot((d) => {
+    dispose = d;
+    return createStore({
+      listFolder: async () => ({ folders: [], files: [] }),
+      getRegistryStatus: async () => ({ configured: false, loaded: false, rows: 0, version: null, error: null }),
+    });
+  });
+  s.init({ prefix: "yeast/", name: "yeast" }, raw);
+  expect(s.currentPrefix()).toBe(raw);
+  s.init({ prefix: "yeast/", name: "yeast" }, "other/");
+  expect(s.currentPrefix()).toBe("yeast/");
 });

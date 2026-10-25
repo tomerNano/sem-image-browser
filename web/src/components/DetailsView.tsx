@@ -3,8 +3,18 @@ import { FIELDS, type Field } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon, ImageIcon } from "./Icons";
 
-/** Details columns: every Field marked as a column, in table order. */
-const COLUMNS = FIELDS.filter((f) => f.column);
+/**
+ * Details columns: every Field marked as a column, in table order. Date shows only at the top
+ * level: inside a batch every file has the batch date, which the folder path already shows.
+ * With no files shown (folders only), only the columns a folder fills in (name, date) remain.
+ */
+const columns = () =>
+  FIELDS.filter(
+    (f) =>
+      f.column &&
+      (f.id !== "date" || !store.canUp()) &&
+      (store.visibleFiles().length > 0 || f.folder !== undefined),
+  );
 
 const cellClass = (f: Field) => ({ text: "", mono: "mono", num: "num mono" })[f.column!.cell];
 
@@ -13,7 +23,7 @@ export default function DetailsView() {
     <table class="details">
       <thead>
         <tr>
-          <For each={COLUMNS}>
+          <For each={columns()}>
             {(col) => (
               <th class="eyebrow" onClick={() => store.sortBy(col.id)}>
                 {col.label}
@@ -28,13 +38,14 @@ export default function DetailsView() {
           {(folder) => (
             <tr
               classList={{ selected: store.isSelected(folder.prefix) }}
+              data-id={folder.prefix}
               onClick={(e) => {
                 e.stopPropagation();
                 store.select(folder.prefix);
               }}
               onDblClick={() => store.navigate(folder.prefix)}
             >
-              <For each={COLUMNS}>
+              <For each={columns()}>
                 {(col) =>
                   col.id === "name" ? (
                     <td>
@@ -57,13 +68,14 @@ export default function DetailsView() {
           {(file) => (
             <tr
               classList={{ selected: store.isSelected(file.key) }}
+              data-id={file.key}
               onClick={(e) => {
                 e.stopPropagation();
                 store.select(file.key);
               }}
               onDblClick={() => store.openViewer(file.key)}
             >
-              <For each={COLUMNS}>
+              <For each={columns()}>
                 {(col) =>
                   col.id === "name" ? (
                     <td>

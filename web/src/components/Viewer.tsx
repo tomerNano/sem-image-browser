@@ -1,5 +1,7 @@
-import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { downloadUrl, previewUrl, thumbUrl } from "../api";
+import { field, type FieldId } from "../lib/fields";
+import { scaleBar } from "../lib/scale";
 import { store } from "../store";
 import { NextIcon, PrevIcon } from "./Icons";
 
@@ -7,6 +9,14 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 10;
 /** Neighbours whose previews load in the background: two ahead, one behind. */
 const PREFETCH = [1, 2, -1];
+/** Values in the data bar under the image, as an SEM shows them. */
+const DATA_BAR: { id: FieldId; label: string }[] = [
+  { id: "fieldWidth", label: "Field width" },
+  { id: "voltage", label: "Voltage" },
+  { id: "workingDistance", label: "Working distance" },
+  { id: "pixelSize", label: "Pixel size" },
+  { id: "detector", label: "Detector" },
+];
 
 /** Full-window image viewer: wheel zooms around the cursor, drag pans, arrows step, Esc closes. */
 export default function Viewer(props: { fileKey: string }) {
@@ -17,6 +27,16 @@ export default function Viewer(props: { fileKey: string }) {
   // A signal, not a plain variable: the stage's "dragging" class (grabbing cursor) reads it.
   const [drag, setDrag] = createSignal<{ x: number; y: number; ox: number; oy: number } | null>(null);
   let stage!: HTMLDivElement;
+  // Stage size and the image's width/height ratio: together they give the drawn image width.
+  const [box, setBox] = createSignal({ w: 0, h: 0 });
+  const [ratio, setRatio] = createSignal(1.6);
+  onMount(() => {
+    const measure = () => setBox({ w: stage.clientWidth, h: stage.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    onCleanup(() => observer.disconnect());
+  });
 
   // The store owns the position among the visible files; null only while this viewer closes.
   const view = () => store.viewer();
@@ -46,6 +66,12 @@ export default function Viewer(props: { fileKey: string }) {
       if (neighbour) new Image().src = previewUrl(neighbour.key, neighbour.uploaded);
     }
   });
+
+  /** Scale bar for the image as drawn now (object-fit: contain, then zoomed). */
+  const bar = () => {
+    const drawn = Math.min(box().w, box().h * ratio()) * scale();
+    return scaleBar(file()?.meta?.fieldWidthUm ?? null, drawn);
+  };
 
   const transform = () => ({ transform: `translate(${offset().x}px, ${offset().y}px) scale(${scale()})` });
 
@@ -119,13 +145,44 @@ export default function Viewer(props: { fileKey: string }) {
         </Show>
         <img
           classList={{ hidden: failed(), loading: !loaded() }}
-          onLoad={() => setLoaded(true)}
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            if (img.naturalHeight > 0) setRatio(img.naturalWidth / img.naturalHeight);
+            setLoaded(true);
+          }}
           onError={() => setFailed(true)}
           src={previewUrl(props.fileKey, uploaded())}
           alt={file()?.name ?? ""}
           draggable={false}
           style={transform()}
         />
+      </div>
+      <div class="data-bar">
+        <Show when={bar()} fallback={<span class="data-bar-empty">No Registry metadata for this image.</span>}>
+          {(b) => (
+            <div class="scale-bar" aria-label={`Scale bar: ${b().label}`}>
+              <div class="scale-bar-line" style={{ width: `${b().px}px` }} />
+              <span>{b().label}</span>
+            </div>
+          )}
+        </Show>
+        <Show when={file()?.meta && file()}>
+          {(f) => (
+            <For each={DATA_BAR}>
+              {(d) => (
+                <div class="data-value">
+                  <span>{d.label}</span>
+                  <b>{field(d.id).format(f())}</b>
+                </div>
+              )}
+            </For>
+          )}
+        </Show>
+        <div class="data-value">
+          <span>Zoom</span>
+          <b>{Math.round(scale() * 10) / 10}×</b>
+        </div>
+        <span class="data-bar-hint">Scroll to zoom, drag to pan, ← → to step</span>
       </div>
       <button
         class="viewer-nav prev"

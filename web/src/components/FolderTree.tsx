@@ -3,8 +3,10 @@ import { listFolder } from "../api";
 import { inDateRange } from "../lib/rows";
 import { store } from "../store";
 import { ChevronIcon, FolderIcon } from "./Icons";
+import SidebarToggle from "./SidebarToggle";
 
-type NodeProps = { name: string; prefix: string; depth: number };
+/** `date` is set for batch folders: their name starts with "YYYY-MM-DD_". */
+type NodeProps = { name: string; prefix: string; date: string | null; depth: number };
 
 /** One folder in the tree. Its children are fetched only when it is first expanded. */
 function TreeNode(props: NodeProps) {
@@ -43,9 +45,12 @@ function TreeNode(props: NodeProps) {
           <ChevronIcon open={expanded()} />
         </button>
         <FolderIcon />
-        <span class="tree-name" title={props.name}>
-          {props.name}
-        </span>
+        <Show when={props.date && props.name.startsWith(props.date + "_")} fallback={<span class="tree-name" title={props.name}>{props.name}</span>}>
+          <span class="tree-date">{props.date}</span>
+          <span class="tree-name" title={props.name}>
+            {props.name.slice(props.date!.length + 1)}
+          </span>
+        </Show>
       </div>
       <Show when={expanded()}>
         <Show when={children.error}>
@@ -55,7 +60,7 @@ function TreeNode(props: NodeProps) {
         </Show>
         <ul>
           <For each={visibleChildren()}>
-            {(child) => <TreeNode name={child.name} prefix={child.prefix} depth={props.depth + 1} />}
+            {(child) => <TreeNode name={child.name} prefix={child.prefix} date={child.date} depth={props.depth + 1} />}
           </For>
         </ul>
       </Show>
@@ -67,10 +72,13 @@ export default function FolderTree() {
   return (
     <aside class="sidebar">
       <div class="brand">
-        <img src="/nanoscout-logo-reversed.png" alt="NanoScout" />
+        {/* Full logo while open; only the emblem shows in the narrow closed rail. */}
+        <img class="brand-logo" src="/nanoscout-logo-reversed.png" alt="NanoScout" />
+        <img class="brand-mark" src="/nanoscout-mark.png" alt="NanoScout" />
+        <SidebarToggle />
       </div>
       <ul class="tree">
-        <TreeNode name={store.root().name} prefix={store.root().prefix} depth={0} />
+        <TreeNode name={store.root().name} prefix={store.root().prefix} date={null} depth={0} />
       </ul>
     </aside>
   );

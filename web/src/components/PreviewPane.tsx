@@ -1,33 +1,66 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { downloadUrl, listFolder, previewUrl } from "../api";
-import { FIELDS, type Field } from "../lib/fields";
+import { FIELDS, PREVIEW_GROUPS, type Field, type PreviewGroup } from "../lib/fields";
 import { itemCount } from "../lib/rows";
 import { store } from "../store";
 import type { FileEntry, ListResult } from "../types";
-import { FolderIcon } from "./Icons";
+import { CheckIcon, CopyIcon, FolderIcon } from "./Icons";
 
 function lastPart(prefix: string): string {
   const parts = prefix.split("/").filter(Boolean);
   return parts[parts.length - 1] ?? "";
 }
 
-/** Preview rows of one section, in table order. */
-const FILE_ROWS = FIELDS.filter((f) => f.preview === "file");
-const REGISTRY_ROWS = FIELDS.filter((f) => f.preview === "registry");
+const GROUP_TITLE: Record<PreviewGroup, string> = {
+  file: "File",
+  image: "Image",
+  microscope: "Microscope",
+  dataset: "Dataset",
+};
 
-/** Label/value list of some Fields of one file. */
-function FieldRows(props: { fields: Field[]; file: FileEntry }) {
+/** Preview rows of each group, in table order. */
+const ROWS: Record<PreviewGroup, Field[]> = Object.fromEntries(
+  PREVIEW_GROUPS.map((g) => [g, FIELDS.filter((f) => f.preview === g)]),
+) as Record<PreviewGroup, Field[]>;
+
+/** One titled group of label/value rows. */
+function FieldGroup(props: { group: PreviewGroup; file: FileEntry }) {
   return (
-    <dl class="preview-meta">
-      <For each={props.fields}>
-        {(f) => (
-          <>
-            <dt class="eyebrow">{f.label}</dt>
-            <dd class="mono">{f.format(props.file)}</dd>
-          </>
-        )}
-      </For>
-    </dl>
+    <section class="preview-group">
+      <h5>{GROUP_TITLE[props.group]}</h5>
+      <dl class="preview-meta">
+        <For each={ROWS[props.group]}>
+          {(f) => (
+            <>
+              <dt>{f.label}</dt>
+              {/* Measured values (numbers with units) in mono, text in the UI face. */}
+              <dd classList={{ mono: typeof f.value(props.file) === "number" }}>{f.format(props.file)}</dd>
+            </>
+          )}
+        </For>
+      </dl>
+    </section>
+  );
+}
+
+/** Copies a file name to the clipboard and shows a check mark for a moment. */
+function CopyName(props: { name: string }) {
+  const [copied, setCopied] = createSignal(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(props.name);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked (insecure origin or denied): the name can still be selected by hand.
+    }
+  };
+  return (
+    <button class="icon-btn copy-name" title={copied() ? "Copied" : "Copy file name"} aria-label="Copy file name" onClick={copy}>
+      <Show when={copied()} fallback={<CopyIcon size={15} />}>
+        <CheckIcon size={15} />
+      </Show>
+    </button>
   );
 }
 
@@ -35,25 +68,27 @@ function FilePreview(props: { file: FileEntry }) {
   const [failed, setFailed] = createSignal(false);
   return (
     <>
-      {/* "Loading…" sits behind the image and is covered once the picture arrives. */}
-      <div class="preview-image">
-        <Show
-          when={!failed()}
-          fallback={<span class="no-preview">Preview not available. The original can still be downloaded.</span>}
-        >
-          <span>Loading…</span>
+      <div class="preview-frame">
+        <Show when={!failed()} fallback={<span class="no-preview">No preview. The original can still be downloaded.</span>}>
           <img src={previewUrl(props.file.key, props.file.uploaded)} alt={props.file.name} onError={() => setFailed(true)} />
         </Show>
       </div>
-      <h4>{props.file.name}</h4>
-      <FieldRows fields={FILE_ROWS} file={props.file} />
+      <div class="preview-title">
+        <h4>{props.file.name}</h4>
+        <CopyName name={props.file.name} />
+      </div>
+      <div class="preview-actions">
+        <button class="action primary" onClick={() => store.openViewer(props.file.key)}>
+          Open <kbd>Space</kbd>
+        </button>
+        <a class="action" href={downloadUrl(props.file.key)} download={props.file.name}>
+          Download
+        </a>
+      </div>
+      <FieldGroup group="file" file={props.file} />
       <Show when={props.file.meta} fallback={<p class="no-meta">No Registry metadata for this file.</p>}>
-        <h5 class="eyebrow">Registry</h5>
-        <FieldRows fields={REGISTRY_ROWS} file={props.file} />
+        <For each={PREVIEW_GROUPS.filter((g) => g !== "file")}>{(g) => <FieldGroup group={g} file={props.file} />}</For>
       </Show>
-      <a class="download-btn" href={downloadUrl(props.file.key)} download={props.file.name}>
-        Download
-      </a>
     </>
   );
 }
@@ -78,18 +113,31 @@ export default function PreviewPane() {
         <Match when={selectedFile()} keyed>
           {(file) => <FilePreview file={file} />}
         </Match>
-        <Match when={store.selected()?.kind === "folder"}>
-          <div class="preview-folder">
-            <FolderIcon size={64} />
-          </div>
-          <h4>{lastPart(selectedFolder() || "")}</h4>
-          <p>{folderListing.error ? "Could not load" : count(folderListing())}</p>
+        <Match when={selectedFolder()} keyed>
+          {(prefix) => (
+            <>
+              <div class="preview-frame folder">
+                <FolderIcon size={56} />
+              </div>
+              <div class="preview-title">
+                <h4>{lastPart(prefix)}</h4>
+              </div>
+              <p>{folderListing.error ? "Could not load" : count(folderListing())}</p>
+              <div class="preview-actions">
+                <button class="action primary" onClick={() => store.navigate(prefix)}>
+                  Open <kbd>Enter</kbd>
+                </button>
+              </div>
+            </>
+          )}
         </Match>
         <Match when={store.selected() === null}>
-          <div class="preview-folder">
-            <FolderIcon size={64} />
+          <div class="preview-frame folder">
+            <FolderIcon size={56} />
           </div>
-          <h4>{lastPart(store.currentPrefix())}</h4>
+          <div class="preview-title">
+            <h4>{lastPart(store.currentPrefix())}</h4>
+          </div>
           <p>{itemCount(store.visibleFolders().length + store.visibleFiles().length)}</p>
         </Match>
       </Switch>

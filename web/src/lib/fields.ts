@@ -29,6 +29,10 @@ export type FieldId =
 
 export type SortDir = "asc" | "desc";
 
+/** Preview pane groups, in display order. Every group but "file" comes from the Registry. */
+export const PREVIEW_GROUPS = ["file", "image", "microscope", "dataset"] as const;
+export type PreviewGroup = (typeof PREVIEW_GROUPS)[number];
+
 export type Field = {
   id: FieldId;
   label: string;
@@ -40,8 +44,8 @@ export type Field = {
   column?: { cell: "text" | "mono" | "num" };
   /** What a folder row shows in this column; folders show nothing for most Fields. */
   folder?(folder: FolderEntry): string;
-  /** Preview pane section: "file" always shows, "registry" only for files with a Registry row. */
-  preview?: "file" | "registry";
+  /** Preview pane group. "file" always shows; the Registry groups only for files with a Registry row. */
+  preview?: PreviewGroup;
   /** `choice` options default to the values found in the current folder. */
   filter?: { kind: "choice"; options?: string[] } | { kind: "range"; unit: string };
 };
@@ -51,6 +55,13 @@ export const MISSING = "—";
 
 /** A number with at most 2 decimals: 10.004 -> "10", 0.256 -> "0.26". */
 const round2 = (n: number) => String(Math.round(n * 100) / 100);
+
+/** ISO timestamp as local "YYYY-MM-DD HH:MM": short enough for a table column. */
+function localDateTime(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 /** 100.0000002 -> "100.0 µm". */
 const microns = (um: number | null | undefined) => (um == null ? MISSING : `${um.toFixed(1)} µm`);
@@ -73,7 +84,6 @@ function registryNumber(
       if (n === null) return MISSING;
       return unit ? `${round2(n)} ${unit}` : round2(n);
     },
-    preview: "registry",
     ...extra,
   };
 }
@@ -86,7 +96,6 @@ function registryText(id: FieldId, label: string, pick: (m: ImageMeta) => string
     label,
     value,
     format: (f) => value(f) ?? MISSING,
-    preview: "registry",
     ...extra,
   };
 }
@@ -121,20 +130,20 @@ export const FIELDS: Field[] = [
     column: { cell: "num" },
     preview: "file",
   },
-  registryText("acquired", "Acquired", (m) => m.acquiredAt?.replace("T", " ") ?? ""),
+  registryText("acquired", "Acquired", (m) => m.acquiredAt?.replace("T", " ") ?? "", { preview: "image" }),
   {
-    ...registryNumber("fieldWidth", "Field width", (m) => m.fieldWidthUm, "µm"),
+    ...registryNumber("fieldWidth", "Field width", (m) => m.fieldWidthUm, "µm", { preview: "image" }),
     format: (f) => microns(f.meta?.fieldWidthUm),
     column: { cell: "num" },
     filter: { kind: "range", unit: "µm" },
   },
   {
-    ...registryNumber("fieldHeight", "Field height", (m) => m.fieldHeightUm, "µm"),
+    ...registryNumber("fieldHeight", "Field height", (m) => m.fieldHeightUm, "µm", { preview: "image" }),
     format: (f) => microns(f.meta?.fieldHeightUm),
   },
   {
     // Stored in µm; nm reads better at SEM scale: 0.0520833 -> "52.08 nm".
-    ...registryNumber("pixelSize", "Pixel", (m) => m.pixelSizeUm, "µm"),
+    ...registryNumber("pixelSize", "Pixel size", (m) => m.pixelSizeUm, "µm", { preview: "image" }),
     format: (f) => (f.meta?.pixelSizeUm == null ? MISSING : `${(f.meta.pixelSizeUm * 1000).toFixed(2)} nm`),
     column: { cell: "num" },
   },
@@ -145,34 +154,34 @@ export const FIELDS: Field[] = [
     value: (f) => (f.meta ? pixels(f.meta) : null),
     format: (f) => (f.meta && pixels(f.meta) !== null ? `${f.meta.widthPx} × ${f.meta.heightPx}` : MISSING),
     column: { cell: "num" },
-    preview: "registry",
+    preview: "image",
     filter: { kind: "choice" },
   },
-  registryText("instrument", "Instrument", (m) => m.instrument, { column: { cell: "text" }, filter: { kind: "choice" } }),
-  registryText("detector", "Detector", (m) => m.detector, { column: { cell: "text" }, filter: { kind: "choice" } }),
-  registryNumber("voltage", "Voltage", (m) => m.voltageKv, "kV", { filter: { kind: "choice" } }),
-  registryNumber("workingDistance", "WD", (m) => m.workingDistanceMm, "mm"),
-  registryNumber("dwellTime", "Dwell", (m) => m.dwellTimeNs, "ns"),
-  registryNumber("spotSize", "Spot", (m) => m.spotSize, ""),
-  registryNumber("integrations", "Integr.", (m) => m.integrations, ""),
+  registryText("instrument", "Instrument", (m) => m.instrument, { column: { cell: "text" }, preview: "microscope", filter: { kind: "choice" } }),
+  registryText("detector", "Detector", (m) => m.detector, { column: { cell: "text" }, preview: "microscope", filter: { kind: "choice" } }),
+  registryNumber("voltage", "Voltage", (m) => m.voltageKv, "kV", { preview: "microscope", filter: { kind: "choice" } }),
+  registryNumber("workingDistance", "Working distance", (m) => m.workingDistanceMm, "mm", { preview: "microscope" }),
+  registryNumber("dwellTime", "Dwell time", (m) => m.dwellTimeNs, "ns", { preview: "microscope" }),
+  registryNumber("spotSize", "Spot size", (m) => m.spotSize, "", { preview: "microscope" }),
+  registryNumber("integrations", "Integrations", (m) => m.integrations, "", { preview: "microscope" }),
   {
     id: "gold",
     label: "Gold",
     value: (f) => f.meta?.gold ?? null,
     format: (f) => (f.meta ? GOLD_TEXT[f.meta.gold] : MISSING),
     column: { cell: "text" },
-    preview: "registry",
+    preview: "dataset",
     filter: { kind: "choice", options: Object.values(GOLD_TEXT) },
   },
-  registryText("experiment", "Experiment", (m) => m.experiment),
-  registryText("source", "Source", (m) => m.source, { filter: { kind: "choice" } }),
-  registryText("variant", "Variant", (m) => m.variant, { filter: { kind: "choice" } }),
-  registryText("imageId", "Image ID", (m) => m.imageId),
+  registryText("experiment", "Experiment", (m) => m.experiment, { preview: "dataset" }),
+  registryText("source", "Source", (m) => m.source, { preview: "dataset", filter: { kind: "choice" } }),
+  registryText("variant", "Variant", (m) => m.variant, { preview: "dataset", filter: { kind: "choice" } }),
+  registryText("imageId", "Image ID", (m) => m.imageId, { preview: "dataset" }),
   {
     id: "uploaded",
     label: "Uploaded",
     value: (f) => Date.parse(f.uploaded),
-    format: (f) => new Date(f.uploaded).toLocaleString(),
+    format: (f) => localDateTime(f.uploaded),
     column: { cell: "mono" },
   },
 ];
@@ -263,4 +272,18 @@ export function choices(f: Field, files: FileEntry[], chosen: string): string[] 
     values = [...found].sort(compareNames);
   }
   return chosen && !values.includes(chosen) ? [chosen, ...values] : values;
+}
+
+/**
+ * Short text for one set filter, for its chip under the toolbar: "sed", "50–100 µm",
+ * "≥ 50 µm", "≤ 100 µm". Null when the filter is not set.
+ */
+export function filterSummary(f: Field, v: FilterValue | undefined): string | null {
+  if (!isSet(v)) return null;
+  if (typeof v === "string") return v;
+  const unit = f.filter?.kind === "range" ? ` ${f.filter.unit}` : "";
+  const min = v!.min.trim();
+  const max = v!.max.trim();
+  if (min && max) return `${min}–${max}${unit}`;
+  return min ? `≥ ${min}${unit}` : `≤ ${max}${unit}`;
 }

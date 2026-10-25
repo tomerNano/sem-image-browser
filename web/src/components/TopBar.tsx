@@ -1,7 +1,9 @@
 import { For } from "solid-js";
+import { canGoBack, goBack } from "../history";
 import { store } from "../store";
+import FilterChips from "./FilterChips";
 import FilterMenu from "./FilterMenu";
-import { BackIcon, FilterIcon, SortIcon, UpIcon } from "./Icons";
+import { BackIcon, FilterIcon, HomeIcon, SortIcon, UpIcon } from "./Icons";
 import Popover from "./Popover";
 import SortMenu from "./SortMenu";
 
@@ -20,11 +22,20 @@ export default function TopBar() {
   return (
     <>
       <header class="toolbar">
-        <button class="icon-btn" title="Back" disabled={!store.canBack()} onClick={() => store.back()}>
+        <button class="icon-btn" title="Back" disabled={!canGoBack()} onClick={goBack}>
           <BackIcon size={18} />
         </button>
         <button class="icon-btn" title="Up" disabled={!store.canUp()} onClick={() => store.up()}>
           <UpIcon size={18} />
+        </button>
+        <button
+          class="icon-btn"
+          title="Home: all batches"
+          aria-label="Home: all batches"
+          disabled={!store.canUp()}
+          onClick={() => store.navigate(store.root().prefix)}
+        >
+          <HomeIcon size={18} />
         </button>
         <nav class="address" aria-label="Current folder">
           <For each={crumbs(store.currentPrefix())}>
@@ -52,14 +63,17 @@ export default function TopBar() {
           <SortMenu />
         </Popover>
       </header>
-      <nav class="tabs" aria-label="View">
-        <button classList={{ active: store.view() === "icons" }} onClick={() => store.setView("icons")}>
-          Large icons
-        </button>
-        <button classList={{ active: store.view() === "details" }} onClick={() => store.setView("details")}>
-          Details
-        </button>
-      </nav>
+      <div class="tabs-row">
+        <nav class="tabs" aria-label="View">
+          <button classList={{ active: store.view() === "icons" }} onClick={() => store.setView("icons")}>
+            Large icons
+          </button>
+          <button classList={{ active: store.view() === "details" }} onClick={() => store.setView("details")}>
+            Details
+          </button>
+        </nav>
+        <FilterChips />
+      </div>
     </>
   );
 }
