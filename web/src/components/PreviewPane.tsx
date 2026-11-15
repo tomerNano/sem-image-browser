@@ -1,10 +1,10 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
-import { downloadUrl, listFolder, previewUrl } from "../api";
+import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl } from "../api";
 import { FIELDS, PREVIEW_GROUPS, type Field, type PreviewGroup } from "../lib/fields";
-import { itemCount } from "../lib/rows";
+import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
 import type { FileEntry, ListResult } from "../types";
-import { CheckIcon, CopyIcon, FolderIcon } from "./Icons";
+import { CheckIcon, CopyIcon, FolderIcon, ImageIcon } from "./Icons";
 
 function lastPart(prefix: string): string {
   const parts = prefix.split("/").filter(Boolean);
@@ -93,6 +93,44 @@ function FilePreview(props: { file: FileEntry }) {
   );
 }
 
+/** Two or more items selected: their count and size, and one zip download for the images. */
+function MultiPreview() {
+  const files = () => store.selectedFiles();
+  const folders = () => store.selection().length - files().length;
+  const bytes = () => files().reduce((total, f) => total + f.size, 0);
+  const tooMany = () => files().length > MAX_ZIP_FILES;
+  return (
+    <>
+      <div class="preview-frame folder">
+        <ImageIcon size={56} />
+      </div>
+      <div class="preview-title">
+        <h4>{store.selection().length} items selected</h4>
+      </div>
+      <Show when={files().length > 0}>
+        <p>
+          {files().length === 1 ? "1 image" : `${files().length} images`}, {formatSize(bytes())}
+        </p>
+      </Show>
+      <Show when={folders() > 0}>
+        <p class="no-meta">Folders are not included in the download.</p>
+      </Show>
+      <Show when={tooMany()}>
+        <p class="no-meta">At most {MAX_ZIP_FILES} images per download. Select fewer.</p>
+      </Show>
+      <div class="preview-actions">
+        <button
+          class="action primary"
+          disabled={files().length === 0 || tooMany()}
+          onClick={() => downloadZip(files().map((f) => f.key))}
+        >
+          Download .zip
+        </button>
+      </div>
+    </>
+  );
+}
+
 export default function PreviewPane() {
   const selectedFolder = () => {
     const s = store.selected();
@@ -109,6 +147,9 @@ export default function PreviewPane() {
   return (
     <aside class="preview-pane">
       <Switch>
+        <Match when={store.selection().length > 1}>
+          <MultiPreview />
+        </Match>
         {/* keyed: a new selected file rebuilds the preview, so the old picture never lingers. */}
         <Match when={selectedFile()} keyed>
           {(file) => <FilePreview file={file} />}

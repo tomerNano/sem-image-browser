@@ -120,3 +120,52 @@ test("init opens the start folder from the address, or the root when it is not i
   s.init({ prefix: "yeast/", name: "yeast" }, "other/");
   expect(s.currentPrefix()).toBe("yeast/");
 });
+
+test("Ctrl+click adds and removes items; selected() is only set for exactly one item", async () => {
+  const s = await storeAt(raw);
+  s.clickItem(key("cell_1.tiff"), { toggle: false, range: false });
+  s.clickItem(key("cell_3.tiff"), { toggle: true, range: false });
+  expect(s.selection().map((i) => i.entry.name)).toEqual(["cell_1.tiff", "cell_3.tiff"]);
+  expect(s.selected()).toBeNull();
+  s.clickItem(key("cell_1.tiff"), { toggle: true, range: false });
+  expect(s.selected()?.entry.name).toBe("cell_3.tiff");
+});
+
+test("Shift+click selects the visible range from the anchor; Ctrl+Shift keeps the old selection", async () => {
+  const s = await storeAt(raw);
+  s.select(key("cell_3.tiff"));
+  s.clickItem(key("cell_1.tiff"), { toggle: false, range: true });
+  expect(s.selectedFiles().map((f) => f.name)).toEqual(["cell_1.tiff", "cell_2.tiff", "cell_3.tiff"]);
+  // The anchor stays on cell_3, so a second Shift+click shrinks the range.
+  s.clickItem(key("cell_2.tiff"), { toggle: false, range: true });
+  expect(s.selectedFiles().map((f) => f.name)).toEqual(["cell_2.tiff", "cell_3.tiff"]);
+
+  s.select(key("cell_1.tiff"));
+  s.clickItem(key("cell_3.tiff"), { toggle: true, range: false });
+  s.clickItem(key("cell_2.tiff"), { toggle: true, range: true });
+  expect(s.selectedFiles().map((f) => f.name)).toEqual(["cell_1.tiff", "cell_2.tiff", "cell_3.tiff"]);
+});
+
+test("a range skips hidden files, and select all takes only visible items", async () => {
+  const s = await storeAt(raw);
+  s.setFilter("gold", "Yes");
+  s.select(key("cell_1.tiff"));
+  s.selectRange(key("cell_3.tiff"));
+  expect(s.selectedFiles().map((f) => f.name)).toEqual(["cell_1.tiff", "cell_3.tiff"]);
+  s.select(null);
+  s.selectAll();
+  expect(s.selection()).toHaveLength(2);
+  s.clearAllFilters();
+  expect(s.isSelected(key("cell_2.tiff"))).toBe(false);
+});
+
+test("selected folders are not selected files, and going to another folder clears everything", async () => {
+  const s = await storeAt("yeast/");
+  s.selectAll();
+  expect(s.selection()).toHaveLength(2);
+  expect(s.selectedFiles()).toEqual([]);
+  s.navigate(raw);
+  await loaded();
+  expect(s.selection()).toEqual([]);
+  expect(s.focused()).toBeNull();
+});

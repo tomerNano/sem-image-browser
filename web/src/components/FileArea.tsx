@@ -4,8 +4,6 @@ import { store, type Selection } from "../store";
 import DetailsView from "./DetailsView";
 import IconsView from "./IconsView";
 
-const idOf = (s: Selection) => (s.kind === "folder" ? s.entry.prefix : s.entry.key);
-
 /** Grey frames in the shape of the contact sheet while a folder loads. */
 function Skeleton() {
   return (
@@ -24,8 +22,9 @@ function Skeleton() {
 
 /**
  * The folder's items as large icons or a table, plus its loading, error, empty and
- * "nothing matches" states. Keyboard: arrows move the selection, Enter or Space opens it,
- * Backspace goes up a folder.
+ * "nothing matches" states. Keyboard: arrows move the selection (Shift+arrows grow it),
+ * Ctrl+A selects everything shown, Enter or Space opens a single selected item, Backspace goes
+ * up a folder. Ctrl+click adds or removes one item; Shift+click selects a range.
  */
 export default function FileArea() {
   let area!: HTMLElement;
@@ -45,9 +44,17 @@ export default function FileArea() {
   }
 
   function onKey(e: KeyboardEvent) {
-    if (store.viewer() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (store.viewer() || e.defaultPrevented || e.altKey) return;
     const target = e.target instanceof Element ? e.target : document.body;
     if (target.closest("input, select, textarea, [contenteditable], .popover-panel")) return;
+
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key.toLowerCase() === "a" && !e.shiftKey) {
+        e.preventDefault();
+        store.selectAll();
+      }
+      return;
+    }
 
     const selected = store.selected();
     if (e.key === "Enter" || e.key === " ") {
@@ -63,19 +70,28 @@ export default function FileArea() {
       return;
     }
 
-    const ids = [...store.visibleFolders().map((f) => f.prefix), ...store.visibleFiles().map((f) => f.key)];
-    const index = selected ? ids.indexOf(idOf(selected)) : -1;
+    const ids = store.visibleIds();
+    const focused = store.focused();
+    const index = focused === null ? -1 : ids.indexOf(focused);
     const next = moveIndex(e.key, index, ids.length, columns());
     if (next === null) return;
     e.preventDefault();
-    store.select(ids[next]);
+    // Shift+arrow grows the selection from the anchor, like Shift+click.
+    if (e.shiftKey) store.selectRange(ids[next]);
+    else store.select(ids[next]);
     area.querySelector(`[data-id="${CSS.escape(ids[next])}"]`)?.scrollIntoView({ block: "nearest" });
   }
   onMount(() => window.addEventListener("keydown", onKey));
   onCleanup(() => window.removeEventListener("keydown", onKey));
 
   return (
-    <section class="file-area" ref={area} onClick={() => store.select(null)}>
+    <section
+      class="file-area"
+      ref={area}
+      // Shift+click would otherwise also select page text between the two items.
+      onMouseDown={(e) => e.shiftKey && e.preventDefault()}
+      onClick={(e) => !(e.ctrlKey || e.metaKey || e.shiftKey) && store.select(null)}
+    >
       <Switch>
         <Match when={store.listing.error}>
           <p class="error">Could not load this folder: {(store.listing.error as Error).message}</p>

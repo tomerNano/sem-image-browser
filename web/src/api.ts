@@ -37,3 +37,34 @@ const imageUrl = (route: string) => (key: string, uploaded: string) =>
 export const thumbUrl = imageUrl("thumb");
 export const previewUrl = imageUrl("preview");
 export const downloadUrl = keyUrl("download");
+
+/** Most files one zip download may hold (the server's MAX_ZIP_FILES). */
+export const MAX_ZIP_FILES = 1000;
+
+/**
+ * Downloads several files of one folder as one zip. A hidden form posts the keys into a hidden
+ * frame, so the page stays put and the browser's own download manager streams the zip to disk.
+ */
+export function downloadZip(keys: string[]): void {
+  const frame = document.createElement("iframe");
+  frame.name = `zip-download-${Date.now()}`;
+  frame.hidden = true;
+  const form = document.createElement("form");
+  form.method = "post";
+  form.action = "/api/download-zip";
+  form.target = frame.name;
+  form.hidden = true;
+  for (const key of keys) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "key";
+    input.value = key;
+    form.append(input);
+  }
+  document.body.append(frame, form);
+  form.submit();
+  form.remove();
+  // Removing the frame before the server answers would cancel the download; by now it has
+  // been handed to the browser's download manager.
+  setTimeout(() => frame.remove(), 5 * 60_000);
+}

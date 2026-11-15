@@ -616,7 +616,26 @@ ul {
 
 .details tbody tr.selected td:first-child {
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.details tbody tr.selected .row-name {
   font-weight: 600;
+}
+
+/* Narrow first column with the selection checkboxes. */
+.details .check-cell {
+  width: 1%;
+  padding-right: 2px;
+  cursor: default;
+}
+
+.details .check-cell input {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .row-name {
@@ -857,6 +876,11 @@ ul {
 
 .action.primary:hover {
   background: #4a69e8;
+}
+
+.action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 kbd {

@@ -40,7 +40,7 @@ export default function IconsView() {
             title={folder.name}
             onClick={(e) => {
               e.stopPropagation();
-              store.select(folder.prefix);
+              store.clickItem(folder.prefix, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });
             }}
             onDblClick={() => store.navigate(folder.prefix)}
           >
@@ -64,7 +64,7 @@ export default function IconsView() {
             title={file.name}
             onClick={(e) => {
               e.stopPropagation();
-              store.select(file.key);
+              store.clickItem(file.key, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });
             }}
             onDblClick={() => store.openViewer(file.key)}
           >

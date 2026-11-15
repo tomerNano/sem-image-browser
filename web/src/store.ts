@@ -47,8 +47,11 @@ export function parentPrefix(prefix: string, rootPrefix: string): string {
 export function createStore(api: StoreApi) {
   const [root, setRoot] = createSignal<Root>({ prefix: "", name: "" });
   const [currentPrefix, setCurrentPrefix] = createSignal("");
-  // The selected item's id: a folder prefix (ends with "/") or a file key.
-  const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  // Ids of the selected items: folder prefixes (end with "/") and file keys.
+  const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set());
+  // Where a Shift range starts (the last plain or Ctrl click), and where the arrow keys move from.
+  const [anchorId, setAnchorId] = createSignal<string | null>(null);
+  const [focusId, setFocusId] = createSignal<string | null>(null);
   const [view, setView] = createSignal<ViewMode>("icons");
   const [search, setSearch] = createSignal("");
   const [dateFrom, setDateFrom] = createSignal("");
@@ -82,7 +85,7 @@ export function createStore(api: StoreApi) {
   function navigate(prefix: string) {
     if (prefix === currentPrefix()) return;
     setCurrentPrefix(prefix);
-    setSelectedId(null);
+    select(null);
     setSearch("");
   }
 
@@ -135,24 +138,92 @@ export function createStore(api: StoreApi) {
   /** Files of this folder that the Field filters hide (search hides are not counted). */
   const hiddenByFilters = createMemo(() => folderFiles().filter((f) => !matchesFilters(f, filters())).length);
 
+  /** Ids of the visible items in display order: folders first, then files. */
+  const visibleIds = createMemo(() => [...visibleFolders().map((f) => f.prefix), ...visibleFiles().map((f) => f.key)]);
+
   /**
-   * The selected item, only while it is visible: a filter or a search that hides it leaves
-   * nothing selected, and clearing them selects it again.
+   * The selected items that are visible, in display order: a filter or a search that hides an
+   * item takes it out of the selection, and clearing them puts it back.
    */
+  const selection = createMemo<Selection[]>(() => {
+    const ids = selectedIds();
+    if (ids.size === 0) return [];
+    return [
+      ...visibleFolders()
+        .filter((f) => ids.has(f.prefix))
+        .map((entry) => ({ kind: "folder" as const, entry })),
+      ...visibleFiles()
+        .filter((f) => ids.has(f.key))
+        .map((entry) => ({ kind: "file" as const, entry })),
+    ];
+  });
+
+  /** The selected item when exactly one is selected (and visible); null for none or several. */
   const selected = createMemo<Selection | null>(
     () => {
-      const id = selectedId();
-      if (id === null) return null;
-      if (id.endsWith("/")) {
-        const entry = visibleFolders().find((f) => f.prefix === id);
-        return entry ? { kind: "folder", entry } : null;
-      }
-      const entry = visibleFiles().find((f) => f.key === id);
-      return entry ? { kind: "file", entry } : null;
+      const items = selection();
+      return items.length === 1 ? items[0] : null;
     },
     null,
     { equals: (a, b) => a?.entry === b?.entry },
   );
+
+  /** The selected files that are visible (selected folders are left out). */
+  const selectedFiles = createMemo<FileEntry[]>(() =>
+    selection().flatMap((s) => (s.kind === "file" ? [s.entry] : [])),
+  );
+
+  /** Select one item (folder prefix or file key) and nothing else; null clears the selection. */
+  function select(id: string | null) {
+    setSelectedIds(new Set(id === null ? [] : [id]));
+    setAnchorId(id);
+    setFocusId(id);
+  }
+
+  /** Ctrl+click: add the item to the selection, or take it out. */
+  function toggleSelect(id: string) {
+    const ids = new Set(selectedIds());
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    setSelectedIds(ids);
+    setAnchorId(id);
+    setFocusId(id);
+  }
+
+  /**
+   * Shift+click or Shift+arrow: every visible item from the anchor to `id`. `add` (Ctrl+Shift)
+   * keeps what was selected before. With no visible anchor it selects only `id`.
+   */
+  function selectRange(id: string, add = false) {
+    const ids = visibleIds();
+    const from = ids.indexOf(anchorId() ?? "");
+    const to = ids.indexOf(id);
+    if (from < 0 || to < 0) {
+      select(id);
+      return;
+    }
+    const range = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+    setSelectedIds(new Set(add ? [...selectedIds(), ...range] : range));
+    setFocusId(id);
+  }
+
+  /** A click on an item, with whether Ctrl (or Cmd) and Shift were held. */
+  function clickItem(id: string, keys: { toggle: boolean; range: boolean }) {
+    if (keys.range) selectRange(id, keys.toggle);
+    else if (keys.toggle) toggleSelect(id);
+    else select(id);
+  }
+
+  /** Ctrl+A: every visible item. */
+  function selectAll() {
+    setSelectedIds(new Set(visibleIds()));
+  }
+
+  /** Where the arrow keys move from: the last clicked or moved-to item, while it is visible. */
+  const focused = () => {
+    const id = focusId();
+    return id !== null && visibleIds().includes(id) ? id : null;
+  };
 
   /** The viewer's file and position among the visible files; null when closed or the file is hidden. */
   const viewer = createMemo<ViewerState | null>(() => {
@@ -167,7 +238,7 @@ export function createStore(api: StoreApi) {
   /** Full-screen viewer on one visible file; the file also becomes the selection. */
   function openViewer(key: string) {
     if (!visibleFiles().some((f) => f.key === key)) return;
-    setSelectedId(key);
+    select(key);
     setViewerKey(key);
   }
 
@@ -190,10 +261,16 @@ export function createStore(api: StoreApi) {
     canUp: () => currentPrefix() !== root().prefix,
     listing,
     selected,
-    /** Select a folder (by prefix) or a file (by key); null clears the selection. */
-    select: (id: string | null) => setSelectedId(id),
-    /** True when the item with this folder prefix or file key is the selected one. */
-    isSelected: (id: string) => selectedId() === id,
+    selection,
+    selectedFiles,
+    select,
+    selectRange,
+    clickItem,
+    selectAll,
+    focused,
+    visibleIds,
+    /** True when the item with this folder prefix or file key is selected. */
+    isSelected: (id: string) => selectedIds().has(id),
     view,
     setView,
     search,

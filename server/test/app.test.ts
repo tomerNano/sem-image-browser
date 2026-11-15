@@ -137,3 +137,66 @@ test("rejects requests for any other host name (DNS rebinding)", async () => {
     expect((await request(app).get("/api/root").set("Host", host)).status).toBe(200);
   }
 });
+
+/** Supertest parser that keeps a binary body as one Buffer. */
+const binary = (r: NodeJS.ReadableStream, cb: (err: Error | null, body: Buffer) => void) => {
+  const chunks: Buffer[] = [];
+  r.on("data", (d: Buffer) => chunks.push(d));
+  r.on("end", () => cb(null, Buffer.concat(chunks)));
+};
+
+const zipForm = (keys: string[]) => keys.map((k) => `key=${encodeURIComponent(k)}`).join("&");
+
+test("zip download streams the chosen files of one folder with an exact Content-Length", async () => {
+  const batch = "yeast/2026-10-06_b_ns-lab_b001/raw/";
+  const one = Buffer.from("first-tiff-bytes");
+  const two = Buffer.from("second-tiff-bytes");
+  const b2 = fakeB2({ [batch + "cell_1.tiff"]: one, [batch + "cell 2.tiff"]: two, [batch + "cell_3.tiff"]: Buffer.from("no") });
+  const res = await request(createApp({ config, b2 }))
+    .post("/api/download-zip")
+    .type("form")
+    .send(zipForm([batch + "cell_1.tiff", batch + "cell 2.tiff", batch + "cell_1.tiff"]))
+    .buffer(true)
+    .parse(binary);
+  expect(res.status).toBe(200);
+  expect(res.headers["content-type"]).toBe("application/zip");
+  expect(res.headers["content-disposition"]).toContain("filename=2026-10-06_b_ns-lab_b001.zip");
+  expect(Number(res.headers["content-length"])).toBe(res.body.length);
+  const body: Buffer = res.body;
+  expect(body.subarray(0, 4)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+  expect(body.includes(one)).toBe(true);
+  expect(body.includes(two)).toBe(true);
+  expect(body.includes("cell 2.tiff")).toBe(true);
+  expect(body.includes("cell_3.tiff")).toBe(false);
+});
+
+test("zip download refuses keys from two folders, too many keys, and no keys", async () => {
+  const app = createApp({ config, b2: fakeB2({}) });
+  const post = (form: string) => request(app).post("/api/download-zip").type("form").send(form);
+  expect((await post(zipForm(["yeast/a/raw/x.tiff", "yeast/b/raw/y.tiff"]))).body).toEqual({
+    error: "All files must be in one folder",
+  });
+  const many = Array.from({ length: 1001 }, (_, i) => `yeast/a/raw/cell_${i}.tiff`);
+  expect((await post(zipForm(many))).status).toBe(400);
+  expect((await post("")).status).toBe(400);
+  expect((await post(zipForm(["other/x.tiff"]))).status).toBe(400);
+});
+
+test("zip download of a missing file is 404 before any byte is sent", async () => {
+  const b2 = fakeB2({ [p + "cell_1.tiff"]: Buffer.from("x") });
+  const res = await request(createApp({ config, b2 }))
+    .post("/api/download-zip")
+    .type("form")
+    .send(zipForm([p + "cell_1.tiff", p + "gone.tiff"]));
+  expect(res.status).toBe(404);
+});
+
+test("zip download refuses a form posted from another website", async () => {
+  const b2 = fakeB2({ [p + "cell_1.tiff"]: Buffer.from("x") });
+  const res = await request(createApp({ config, b2 }))
+    .post("/api/download-zip")
+    .set("Sec-Fetch-Site", "cross-site")
+    .type("form")
+    .send(zipForm([p + "cell_1.tiff"]));
+  expect(res.status).toBe(403);
+});

@@ -9,6 +9,10 @@ import type { ImageRenderer, ImageSize } from "./images.js";
 import { validateKey, validatePrefix } from "./keys.js";
 import { mapListing } from "./listing.js";
 import type { Registry } from "./registry.js";
+import { createZip, zipName } from "./zip.js";
+
+/** Most files one zip download may hold. */
+export const MAX_ZIP_FILES = 1000;
 
 export type AppDeps = { config: Config; b2: B2; images?: ImageRenderer; registry?: Registry; webDist?: string };
 
@@ -108,6 +112,47 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
       res.destroy();
     }
   });
+
+  // Several originals of one folder as one zip. A form POST (not fetch), so the browser's own
+  // download manager saves the stream; the key list is too long for a URL.
+  app.post(
+    "/api/download-zip",
+    express.urlencoded({ extended: false, limit: "512kb", parameterLimit: MAX_ZIP_FILES + 10 }),
+    async (req, res) => {
+      // Another website could post this form too; browsers mark such requests as cross-site.
+      const site = req.get("Sec-Fetch-Site");
+      if (site && site !== "same-origin") throw new HttpError(403, "Cross-site request refused");
+
+      const raw: unknown = req.body?.key;
+      const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
+      if (values.length === 0) throw new HttpError(400, "Missing key");
+      if (values.length > MAX_ZIP_FILES) throw new HttpError(400, `At most ${MAX_ZIP_FILES} files per download`);
+      const keys = [...new Set(values.map((v) => validateKey(v, config.rawPrefix)))];
+      const parent = (key: string) => key.slice(0, key.lastIndexOf("/") + 1);
+      const folder = parent(keys[0]);
+      if (keys.some((k) => parent(k) !== folder)) throw new HttpError(400, "All files must be in one folder");
+
+      // One listing gives every size (so Content-Length is exact) and finds missing files before
+      // any byte is sent, while an error page is still possible.
+      const objects = new Map((await b2.list(folder)).objects.map((o) => [o.key, o]));
+      const entries = keys.map((key) => {
+        const object = objects.get(key);
+        if (!object) throw new HttpError(404, "Not found");
+        return { key, name: key.slice(folder.length), size: object.size, mtime: object.lastModified };
+      });
+
+      const { output, size } = createZip(entries, async (key) => (await b2.getStream(key)).body);
+      res.attachment(zipName(folder));
+      const total = await size;
+      if (total >= 0) res.set("Content-Length", String(total));
+      try {
+        await pipeline(output, res);
+      } catch (err) {
+        console.error(`Zip download of ${keys.length} files from ${folder} failed:`, err);
+        res.destroy();
+      }
+    },
+  );
 
   if (images) {
     const sendImage = (size: ImageSize) => async (req: Request, res: Response) => {

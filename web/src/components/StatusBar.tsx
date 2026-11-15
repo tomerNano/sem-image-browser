@@ -21,14 +21,15 @@ export default function StatusBar() {
   return (
     <footer class="statusbar">
       <span>
-        {itemCount(items())} | {store.selected() ? 1 : 0} selected
+        {itemCount(items())} | {store.selection().length} selected
         <Show when={store.hiddenByFilters() > 0}>
           {" "}| {store.hiddenByFilters()} hidden by filters
         </Show>
       </span>
       <Show when={registryWarning()}>{(w) => <span class="status-warning">{w()}</span>}</Show>
       <span class="status-hints">
-        <kbd>← ↑ → ↓</kbd> move <kbd>Enter</kbd> open <kbd>Backspace</kbd> up
+        <kbd>← ↑ → ↓</kbd> move <kbd>Ctrl</kbd>/<kbd>Shift</kbd>+click select many <kbd>Enter</kbd> open{" "}
+        <kbd>Backspace</kbd> up
       </span>
       <span class={`status-pill ${listingState()}`}>{listingState()}</span>
     </footer>
