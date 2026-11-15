@@ -24,7 +24,7 @@ export type RegistryConfig =
 type Env = Record<string, string | undefined>;
 
 const DEFAULT_REGISTRY_REPO = "Nanoscout/data-registry";
-const DEFAULT_REGISTRY_REF = "v1";
+const DEFAULT_REGISTRY_REF = "main";
 const DEFAULT_REGISTRY_PATH = "catalog/yeast/images.csv";
 const GITHUB_REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 

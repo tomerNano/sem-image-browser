@@ -14,7 +14,7 @@ Changed: `config.ts`, `listing.ts`, `app.ts`, `index.ts` (server); `types.ts`, `
 data-registry clone (git pull)  -->  images.csv  -->  server (Map by B2 key)  -->  /api/list  -->  browser
 ```
 
-The Registry is a git repo (`Nanoscout/data-registry`, branch `v1`). Each row of `images.csv` has a
+The Registry is a git repo (`Nanoscout/data-registry`, default branch `main`). Each row of `images.csv` has a
 `b2_key` column, the exact B2 key of the raw TIFF, for example
 `SEM-DATA/yeast/2026-10-12_miluda_5B_ns-lab_b001/raw/cell_284.tiff`. That is the join: no file name
 guessing. A row can also have `image_key` (the preprocessed variant), so both files get the same row.
@@ -90,7 +90,7 @@ Rules (in `lib/rows.ts`, tested in `lib/filters.test.ts`):
 ## Turn it on
 
 In `.env`: `REGISTRY_GITHUB_TOKEN=<fine-grained token, data-registry only, Contents: Read-only>`.
-The server checks GitHub once a minute, so a new commit on `v1` shows up by itself.
+The server checks GitHub once a minute, so a new commit on `main` shows up by itself.
 
 For development without a token: `REGISTRY_CSV_PATH=<clone>/catalog/yeast/images.csv` (wins over the
 token). Then `git pull` in the clone updates the data within 5 s. With neither variable the GUI

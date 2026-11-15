@@ -62,13 +62,13 @@ test("REGISTRY_GITHUB_TOKEN reads the Registry from GitHub, with defaults for re
     kind: "github",
     token: "ghp_x",
     repo: "Nanoscout/data-registry",
-    ref: "v1",
+    ref: "main",
     path: "catalog/yeast/images.csv",
   });
-  const custom = { REGISTRY_GITHUB_REPO: "acme/reg", REGISTRY_GITHUB_REF: "main", REGISTRY_GITHUB_PATH: "/a/b.csv" };
+  const custom = { REGISTRY_GITHUB_REPO: "acme/reg", REGISTRY_GITHUB_REF: "v2", REGISTRY_GITHUB_PATH: "/a/b.csv" };
   expect(loadConfig({ ...full, REGISTRY_GITHUB_TOKEN: "ghp_x", ...custom }, "/app").registry).toMatchObject({
     repo: "acme/reg",
-    ref: "main",
+    ref: "v2",
     path: "a/b.csv",
   });
 });
