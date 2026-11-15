@@ -3,6 +3,7 @@ import { moveIndex } from "../lib/keys";
 import { store, type Selection } from "../store";
 import DetailsView from "./DetailsView";
 import IconsView from "./IconsView";
+import Pager from "./Pager";
 
 /** Grey frames in the shape of the contact sheet while a folder loads. */
 function Skeleton() {
@@ -128,6 +129,7 @@ export default function FileArea() {
           <Show when={store.view() === "icons"} fallback={<DetailsView />}>
             <IconsView />
           </Show>
+          <Pager onChange={() => area.scrollTo({ top: 0 })} />
         </Match>
       </Switch>
     </section>

@@ -31,7 +31,7 @@ const fieldWidth = field("fieldWidth");
 export default function IconsView() {
   return (
     <div class="icons">
-      <For each={store.visibleFolders()}>
+      <For each={store.pageFolders()}>
         {(folder) => (
           <div
             class="tile"
@@ -55,7 +55,7 @@ export default function IconsView() {
           </div>
         )}
       </For>
-      <For each={store.visibleFiles()}>
+      <For each={store.pageFiles()}>
         {(file) => (
           <div
             class="tile"

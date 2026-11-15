@@ -84,7 +84,7 @@ export default function DetailsView() {
         </tr>
       </thead>
       <tbody>
-        <For each={store.visibleFolders()}>
+        <For each={store.pageFolders()}>
           {(folder) => (
             <tr
               classList={{ selected: store.isSelected(folder.prefix) }}
@@ -115,7 +115,7 @@ export default function DetailsView() {
             </tr>
           )}
         </For>
-        <For each={store.visibleFiles()}>
+        <For each={store.pageFiles()}>
           {(file) => (
             <tr
               classList={{ selected: store.isSelected(file.key) }}

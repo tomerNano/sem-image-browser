@@ -36,6 +36,14 @@ export type StoreApi = {
   getRegistryStatus(): Promise<RegistryStatus>;
 };
 
+/**
+ * Items per page (folders first, then files). A page bounds the DOM and the thumbnail requests;
+ * sort, search, filters and selection still cover the whole folder.
+ */
+export const PAGE_SIZE = 200;
+
+export type StoreOptions = { pageSize?: number };
+
 /** "yeast/a/raw/" -> "yeast/a/" (never above the root). */
 export function parentPrefix(prefix: string, rootPrefix: string): string {
   if (prefix === rootPrefix) return rootPrefix;
@@ -44,7 +52,7 @@ export function parentPrefix(prefix: string, rootPrefix: string): string {
 }
 
 /** Must run inside a reactive owner (createRoot). */
-export function createStore(api: StoreApi) {
+export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOptions = {}) {
   const [root, setRoot] = createSignal<Root>({ prefix: "", name: "" });
   const [currentPrefix, setCurrentPrefix] = createSignal("");
   // Ids of the selected items: folder prefixes (end with "/") and file keys.
@@ -141,6 +149,40 @@ export function createStore(api: StoreApi) {
   /** Ids of the visible items in display order: folders first, then files. */
   const visibleIds = createMemo(() => [...visibleFolders().map((f) => f.prefix), ...visibleFiles().map((f) => f.key)]);
 
+  // The page number remembers which visibleIds() list it was set for. A new list (another folder,
+  // search, filter or sort) is a new array, so the page falls back to the first one by itself.
+  const [pageState, setPageState] = createSignal<{ ids: string[] | null; page: number }>({ ids: null, page: 0 });
+
+  const pageCount = createMemo(() => Math.max(1, Math.ceil(visibleIds().length / pageSize)));
+
+  /** Current page, counted from 0. */
+  const page = createMemo(() => {
+    const state = pageState();
+    const wanted = state.ids === visibleIds() ? state.page : 0;
+    return Math.min(Math.max(wanted, 0), pageCount() - 1);
+  });
+
+  function setPage(n: number) {
+    setPageState({ ids: visibleIds(), page: n });
+  }
+
+  /** Open the page that holds this item (keyboard and viewer moves can leave the current page). */
+  function showPageOf(id: string) {
+    const index = visibleIds().indexOf(id);
+    if (index >= 0) setPage(Math.floor(index / pageSize));
+  }
+
+  /** The visible folders on the current page. */
+  const pageFolders = createMemo(() => visibleFolders().slice(page() * pageSize, (page() + 1) * pageSize));
+
+  /** The visible files on the current page (after the page's folders). */
+  const pageFiles = createMemo(() => {
+    const folderCount = visibleFolders().length;
+    const start = Math.max(0, page() * pageSize - folderCount);
+    const end = Math.max(0, (page() + 1) * pageSize - folderCount);
+    return visibleFiles().slice(start, end);
+  });
+
   /**
    * The selected items that are visible, in display order: a filter or a search that hides an
    * item takes it out of the selection, and clearing them puts it back.
@@ -178,6 +220,7 @@ export function createStore(api: StoreApi) {
     setSelectedIds(new Set(id === null ? [] : [id]));
     setAnchorId(id);
     setFocusId(id);
+    if (id !== null) showPageOf(id);
   }
 
   /** Ctrl+click: add the item to the selection, or take it out. */
@@ -205,6 +248,7 @@ export function createStore(api: StoreApi) {
     const range = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
     setSelectedIds(new Set(add ? [...selectedIds(), ...range] : range));
     setFocusId(id);
+    showPageOf(id);
   }
 
   /** A click on an item, with whether Ctrl (or Cmd) and Shift were held. */
@@ -269,6 +313,12 @@ export function createStore(api: StoreApi) {
     selectAll,
     focused,
     visibleIds,
+    pageSize,
+    page,
+    pageCount,
+    setPage,
+    pageFolders,
+    pageFiles,
     /** True when the item with this folder prefix or file key is selected. */
     isSelected: (id: string) => selectedIds().has(id),
     view,

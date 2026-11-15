@@ -19,19 +19,27 @@ const LISTINGS: Record<string, ListResult> = {
     folders: [],
     files: [file("cell_1.tiff", "true"), file("cell_2.tiff", "false"), file("cell_3.tiff", "true")],
   },
+  // 2 folders + 5 files: with 3 items per page, pages are [a, b, cell_1] [cell_2..cell_4] [cell_5].
+  "yeast/big/": {
+    folders: [folder("a"), folder("b")],
+    files: ["cell_1", "cell_2", "cell_3", "cell_4", "cell_5"].map((n) => ({
+      ...file(n + ".tiff", n === "cell_2" ? "false" : "true"),
+      key: `yeast/big/${n}.tiff`,
+    })),
+  },
 };
 
 let dispose = () => {};
 afterEach(() => dispose());
 
 /** A fresh store on the in-memory listing, opened at `prefix` with its listing loaded. */
-async function storeAt(prefix: string) {
+async function storeAt(prefix: string, pageSize?: number) {
   const s = createRoot((d) => {
     dispose = d;
     return createStore({
       listFolder: async (p) => LISTINGS[p] ?? { folders: [], files: [] },
       getRegistryStatus: async () => ({ configured: false, loaded: false, rows: 0, version: null, error: null }),
-    });
+    }, { pageSize });
   });
   s.init({ prefix: "yeast/", name: "yeast" });
   s.navigate(prefix);
@@ -168,4 +176,60 @@ test("selected folders are not selected files, and going to another folder clear
   await loaded();
   expect(s.selection()).toEqual([]);
   expect(s.focused()).toBeNull();
+});
+
+const big = "yeast/big/";
+const names = (s: Awaited<ReturnType<typeof storeAt>>) => [
+  ...s.pageFolders().map((f) => f.name),
+  ...s.pageFiles().map((f) => f.name),
+];
+
+test("pages slice folders first, then files; the last page holds the rest", async () => {
+  const s = await storeAt(big, 3);
+  expect(s.pageCount()).toBe(3);
+  expect(names(s)).toEqual(["a", "b", "cell_1.tiff"]);
+  s.setPage(1);
+  expect(names(s)).toEqual(["cell_2.tiff", "cell_3.tiff", "cell_4.tiff"]);
+  s.setPage(2);
+  expect(names(s)).toEqual(["cell_5.tiff"]);
+  s.setPage(9);
+  expect(s.page()).toBe(2);
+});
+
+test("a folder that fits on one page has one page", async () => {
+  const s = await storeAt(raw);
+  expect(s.pageCount()).toBe(1);
+  expect(s.pageFiles()).toHaveLength(3);
+});
+
+test("search, filters, sort and another folder go back to the first page", async () => {
+  const s = await storeAt(big, 3);
+  s.setPage(2);
+  s.setFilter("gold", "Yes");
+  expect(s.page()).toBe(0);
+  s.setPage(1);
+  s.setSearch("cell");
+  expect(s.page()).toBe(0);
+  s.setPage(1);
+  s.sortBy("name");
+  expect(s.page()).toBe(0);
+});
+
+test("Ctrl+A and the viewer still cover every page", async () => {
+  const s = await storeAt(big, 3);
+  s.selectAll();
+  expect(s.selection()).toHaveLength(7);
+  s.openViewer(big + "cell_1.tiff");
+  expect(s.viewer()).toMatchObject({ index: 0, count: 5 });
+});
+
+test("the page follows the focus: selecting or viewing an item on another page opens that page", async () => {
+  const s = await storeAt(big, 3);
+  s.select(big + "cell_2.tiff");
+  expect(s.page()).toBe(1);
+  s.openViewer(big + "cell_4.tiff");
+  s.stepViewer(1);
+  expect(s.page()).toBe(2);
+  s.selectRange(big + "cell_1.tiff");
+  expect(s.page()).toBe(0);
 });
