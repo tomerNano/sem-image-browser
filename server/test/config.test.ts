@@ -49,9 +49,37 @@ test("strips slashes from B2_RAW_PREFIX", () => {
   expect(loadConfig({ ...full, B2_RAW_PREFIX: "/yeast/" }, "/app").rawPrefix).toBe("yeast");
 });
 
-test("REGISTRY_CSV_PATH is optional and resolves against the repo root", () => {
-  expect(loadConfig(full, "/app").registryCsvPath).toBeNull();
-  expect(loadConfig({ ...full, REGISTRY_CSV_PATH: "reg/images.csv" }, "/app").registryCsvPath).toBe(
-    path.resolve("/app", "reg/images.csv"),
-  );
+test("Registry is optional; REGISTRY_CSV_PATH resolves against the repo root", () => {
+  expect(loadConfig(full, "/app").registry).toBeNull();
+  expect(loadConfig({ ...full, REGISTRY_CSV_PATH: "reg/images.csv" }, "/app").registry).toEqual({
+    kind: "file",
+    path: path.resolve("/app", "reg/images.csv"),
+  });
+});
+
+test("REGISTRY_GITHUB_TOKEN reads the Registry from GitHub, with defaults for repo, branch and path", () => {
+  expect(loadConfig({ ...full, REGISTRY_GITHUB_TOKEN: "ghp_x" }, "/app").registry).toEqual({
+    kind: "github",
+    token: "ghp_x",
+    repo: "Nanoscout/data-registry",
+    ref: "v1",
+    path: "catalog/yeast/images.csv",
+  });
+  const custom = { REGISTRY_GITHUB_REPO: "acme/reg", REGISTRY_GITHUB_REF: "main", REGISTRY_GITHUB_PATH: "/a/b.csv" };
+  expect(loadConfig({ ...full, REGISTRY_GITHUB_TOKEN: "ghp_x", ...custom }, "/app").registry).toMatchObject({
+    repo: "acme/reg",
+    ref: "main",
+    path: "a/b.csv",
+  });
+});
+
+test("a local REGISTRY_CSV_PATH wins over the GitHub token", () => {
+  const env = { ...full, REGISTRY_CSV_PATH: "reg/images.csv", REGISTRY_GITHUB_TOKEN: "ghp_x" };
+  expect(loadConfig(env, "/app").registry?.kind).toBe("file");
+});
+
+test("rejects a REGISTRY_GITHUB_REPO that is not owner/name, without printing the token", () => {
+  const env = { ...full, REGISTRY_GITHUB_TOKEN: "ghp_secret", REGISTRY_GITHUB_REPO: "data-registry" };
+  expect(() => loadConfig(env, "/app")).toThrow(/REGISTRY_GITHUB_REPO/);
+  expect(() => loadConfig(env, "/app")).not.toThrow(/ghp_secret/);
 });

@@ -2,7 +2,7 @@ import { mkdtemp, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test } from "vitest";
-import { createFileSource, createRegistry, type RegistrySource } from "../src/registry.js";
+import { createFileSource, createGitHubSource, createRegistry, type RegistrySource } from "../src/registry.js";
 
 const HEADER = "image_id,b2_key,image_key,gold,instrument_model,field_width_um,pixel_size_um,magnification,acquired_at";
 const RAW = "yeast/b1/raw/cell_1.tiff";
@@ -98,4 +98,51 @@ test("file source: missing file is an error, a newer file time reloads", async (
   await reg.refresh();
   expect(reg.lookup(RAW)?.gold).toBe("false");
   expect(reg.status().version).toBe("2026-10-21T10:00:00.000Z");
+});
+
+const GITHUB = { token: "ghp_secret", repo: "Nanoscout/data-registry", ref: "v1", path: "catalog/yeast/images.csv" };
+
+/** Fake fetch that records each request and answers with the next queued response. */
+function fakeFetch(...responses: Response[]) {
+  const calls: { url: string; headers: Headers }[] = [];
+  const fetchFn = async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), headers: new Headers(init?.headers) });
+    const next = responses.shift();
+    if (!next) throw new Error("no more fake responses");
+    return next;
+  };
+  return { fetchFn: fetchFn as typeof fetch, calls };
+}
+
+test("GitHub source: fetches the raw file at the branch with the token, version = ETag", async () => {
+  const { fetchFn, calls } = fakeFetch(new Response(csv(), { status: 200, headers: { ETag: '"abc"' } }));
+  const result = await createGitHubSource(GITHUB, fetchFn).load(null);
+
+  expect(result).toEqual({ version: '"abc"', text: csv() });
+  expect(calls[0].url).toBe(
+    "https://api.github.com/repos/Nanoscout/data-registry/contents/catalog/yeast/images.csv?ref=v1",
+  );
+  expect(calls[0].headers.get("authorization")).toBe("Bearer ghp_secret");
+  expect(calls[0].headers.get("accept")).toBe("application/vnd.github.raw+json");
+  expect(calls[0].headers.get("if-none-match")).toBeNull();
+});
+
+test("GitHub source: sends the last ETag and treats 304 as unchanged", async () => {
+  const { fetchFn, calls } = fakeFetch(new Response(null, { status: 304 }));
+  expect(await createGitHubSource(GITHUB, fetchFn).load('"abc"')).toBe("unchanged");
+  expect(calls[0].headers.get("if-none-match")).toBe('"abc"');
+});
+
+test("GitHub source: an error status becomes a clear Registry error without the token", async () => {
+  const { fetchFn } = fakeFetch(new Response("Not Found", { status: 404 }));
+  const reg = createRegistry(createGitHubSource(GITHUB, fetchFn), 0);
+  await reg.refresh();
+  const { error } = reg.status();
+  expect(error).toMatch(/not found on GitHub/);
+  expect(error).not.toContain("ghp_secret");
+});
+
+test("GitHub source: a rejected token says so", async () => {
+  const { fetchFn } = fakeFetch(new Response("Bad credentials", { status: 401 }));
+  await expect(createGitHubSource(GITHUB, fetchFn).load(null)).rejects.toThrow(/token rejected/);
 });

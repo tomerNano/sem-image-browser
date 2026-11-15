@@ -19,10 +19,12 @@ cp .env.example .env
 Fill `.env` with the **read-only** B2 application key (never the pipeline's key), the bucket, and
 `B2_RAW_PREFIX` (the folder that holds the batches, for example `SEM-DATA/yeast`). `.env` is gitignored.
 
-Optional: set `REGISTRY_CSV_PATH` to `catalog/yeast/images.csv` in a local clone of the Registry
-(`Nanoscout/data-registry`, branch `v1`). The GUI then shows field width, pixel size, instrument,
-detector, gold and more, with filters. The server re-reads the file when it changes, so a `git pull`
-in the clone is enough to update it. Without the variable, everything else works and the metadata
+Optional: set `REGISTRY_GITHUB_TOKEN` to a fine-grained GitHub token with access to
+`Nanoscout/data-registry` only and the permission Contents: Read-only. The server then reads
+`catalog/yeast/images.csv` (branch `v1`) from GitHub, checks for new commits once a minute, and the
+GUI shows field width, pixel size, instrument, detector, gold and more, with filters. No clone and no
+`git pull` needed. For development, `REGISTRY_CSV_PATH` can point at `images.csv` in a local clone
+instead (it wins over the token). Without either variable, everything else works and the metadata
 shows "—".
 
 ## Run

@@ -37,13 +37,67 @@ export type RegistryStatus = {
 
 /**
  * Where images.csv comes from. `load` returns "unchanged" when the content still matches `since`,
- * so callers can check often and only re-parse after a change. Today: a local file (FileSource).
- * Later: GitHub with a read-only token, using the ETag as the version.
+ * so callers can check often and only re-parse after a change. Two sources: a local file
+ * (createFileSource, for development) and GitHub with a read-only token (createGitHubSource).
  */
 export type RegistrySource = {
   name: string;
   load(since: string | null): Promise<{ version: string; text: string } | "unchanged">;
 };
+
+const GITHUB_API_URL = "https://api.github.com";
+const GITHUB_API_VERSION = "2022-11-28";
+// GitHub refuses API requests without a User-Agent; a generic app name is enough.
+const GITHUB_USER_AGENT = "b2-gui";
+const GITHUB_TIMEOUT_MS = 10_000;
+
+export type GitHubFile = { token: string; repo: string; ref: string; path: string };
+
+/** Error text for a failed GitHub answer. Never includes the token. */
+function gitHubError(status: number): Error {
+  if (status === 401) return new Error("GitHub token rejected (401)");
+  if (status === 403 || status === 429) {
+    return new Error(`GitHub refused the request (${status}): check the token's repository access or the rate limit`);
+  }
+  if (status === 404) {
+    return new Error("Registry file not found on GitHub (404): check repo, branch, path and the token's repository access");
+  }
+  return new Error(`GitHub answered ${status}`);
+}
+
+/**
+ * Reads images.csv through the GitHub contents API (raw media type, files up to 100 MB).
+ * Version = the ETag; sending it back as If-None-Match gives a 304 that costs no rate limit.
+ * `fetchFn` is replaceable for tests.
+ */
+export function createGitHubSource(file: GitHubFile, fetchFn: typeof fetch = fetch): RegistrySource {
+  const encodedPath = file.path.split("/").map(encodeURIComponent).join("/");
+  const url = `${GITHUB_API_URL}/repos/${file.repo}/contents/${encodedPath}?ref=${encodeURIComponent(file.ref)}`;
+  return {
+    name: `${file.repo}@${file.ref}:${file.path} (GitHub)`,
+    async load(since) {
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.raw+json",
+        Authorization: `Bearer ${file.token}`,
+        "User-Agent": GITHUB_USER_AGENT,
+        "X-GitHub-Api-Version": GITHUB_API_VERSION,
+      };
+      if (since) headers["If-None-Match"] = since;
+
+      let res: Response;
+      try {
+        res = await fetchFn(url, { headers, signal: AbortSignal.timeout(GITHUB_TIMEOUT_MS) });
+      } catch (err) {
+        throw new Error("GitHub unreachable", { cause: err });
+      }
+      if (res.status === 304) return "unchanged";
+      if (!res.ok) throw gitHubError(res.status);
+      // Without an ETag every check re-downloads; the load time still marks the version.
+      const version = res.headers.get("etag") ?? new Date().toISOString();
+      return { version, text: await res.text() };
+    },
+  };
+}
 
 /** Reads images.csv from a local clone of the Registry. Version = the file's modified time. */
 export function createFileSource(filePath: string): RegistrySource {

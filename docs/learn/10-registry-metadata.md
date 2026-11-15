@@ -34,8 +34,10 @@ export type RegistrySource = {
 Today `createFileSource(path)` reads a local file. Its `version` is the file's modified time, so
 `load` can answer `"unchanged"` after one cheap `stat` call instead of reading 1 MB every time.
 
-Later, a `createGitHubSource(token)` can fetch the same file from the GitHub API with a read-only
-token, and use the HTTP `ETag` as the version (`If-None-Match` gives a free "304 Not Modified").
+`createGitHubSource(file, fetchFn)` fetches the same file from the GitHub API with a read-only
+token, and uses the HTTP `ETag` as the version: the next request sends it as `If-None-Match`, and
+GitHub answers "304 Not Modified" (no body, no rate-limit cost) until someone commits a new CSV.
+`fetchFn` is a parameter so tests pass a fake (compare: injecting a `requests.Session` in Python).
 Nothing else changes: `createRegistry` only knows the interface. This is the "seam" to show a reviewer.
 
 ## The registry: an in-memory index
@@ -87,6 +89,9 @@ Rules (in `lib/rows.ts`, tested in `lib/filters.test.ts`):
 
 ## Turn it on
 
-In `.env`: `REGISTRY_CSV_PATH=C:/Users/User/Desktop/NanoScoutGithub/data-registry-v1/catalog/yeast/images.csv`.
-Without it the GUI works as before and shows "—". To update the data: `git pull` in the clone; the
-server notices the new file time within 5 s.
+In `.env`: `REGISTRY_GITHUB_TOKEN=<fine-grained token, data-registry only, Contents: Read-only>`.
+The server checks GitHub once a minute, so a new commit on `v1` shows up by itself.
+
+For development without a token: `REGISTRY_CSV_PATH=<clone>/catalog/yeast/images.csv` (wins over the
+token). Then `git pull` in the clone updates the data within 5 s. With neither variable the GUI
+works as before and shows "—".
