@@ -14,6 +14,12 @@ import { createZip, zipName } from "./zip.js";
 /** Most files one zip download may hold. */
 export const MAX_ZIP_FILES = 1000;
 
+/**
+ * Browser cache for thumbnails and previews: one day, this user's browser only (no shared proxy).
+ * Image URLs carry the file's upload time, so a file replaced in B2 gets a new URL.
+ */
+const IMAGE_CACHE_CONTROL = "private, max-age=86400";
+
 export type AppDeps = { config: Config; b2: B2; images?: ImageRenderer; registry?: Registry; webDist?: string };
 
 /** Logs one line per request: method, path, status, duration. */
@@ -158,8 +164,7 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     const sendImage = (size: ImageSize) => async (req: Request, res: Response) => {
       const key = validateKey(req.query.key, config.rawPrefix);
       const image = await images(key, size);
-      // no-store: the browser keeps no copy of viewed images on the user's disk.
-      res.set("Cache-Control", "no-store").type(image.contentType).send(image.body);
+      res.set("Cache-Control", IMAGE_CACHE_CONTROL).type(image.contentType).send(image.body);
     };
     app.get("/api/thumb", sendImage("thumb"));
     app.get("/api/preview", sendImage("preview"));
