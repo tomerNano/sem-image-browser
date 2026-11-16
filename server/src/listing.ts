@@ -1,7 +1,8 @@
-import { batchDate, compareNames, isTiff } from "./keys.js";
+import { batchDate, batchName, compareNames, isTiff } from "./keys.js";
 import type { ImageMeta } from "./registry.js";
 
-export type FolderEntry = { name: string; prefix: string; date: string | null };
+/** `tags`: the split's Registry tags, only for batch folders directly under the root; else []. */
+export type FolderEntry = { name: string; prefix: string; date: string | null; tags: string[] };
 /** `uploaded` is an ISO 8601 timestamp. */
 export type FileEntry = {
   name: string;
@@ -11,6 +12,8 @@ export type FileEntry = {
   date: string | null;
   /** Registry metadata, or null when the Registry has no row for this file. */
   meta: ImageMeta | null;
+  /** Tags of the split (batch) this file belongs to. */
+  tags: string[];
 };
 export type ListResult = { folders: FolderEntry[]; files: FileEntry[] };
 
@@ -25,19 +28,25 @@ const HIDDEN_FOLDERS = new Set([".cache"]);
 /**
  * Turn one level of a raw listing into what the UI shows: hidden folders and non-TIFF files
  * are removed. Batch folders (directly under the root) are sorted newest date first, undated
- * ones last; everything else is sorted by name in natural order. `lookup` adds Registry metadata.
+ * ones last; everything else is sorted by name in natural order. `lookup` adds Registry metadata
+ * and `tagsFor` the split tags.
  */
 export function mapListing(
   prefix: string,
   rawPrefix: string,
   raw: RawListing,
   lookup: (key: string) => ImageMeta | null = () => null,
+  tagsFor: (split: string) => string[] = () => [],
 ): ListResult {
+  const atRoot = prefix === rawPrefix + "/";
   const folders: FolderEntry[] = raw.prefixes
-    .map((p) => ({ name: p.slice(prefix.length).replace(/\/$/, ""), prefix: p, date: batchDate(p, rawPrefix) }))
+    .map((p) => {
+      const name = p.slice(prefix.length).replace(/\/$/, "");
+      return { name, prefix: p, date: batchDate(p, rawPrefix), tags: atRoot ? tagsFor(name) : [] };
+    })
     .filter((f) => f.name !== "" && !HIDDEN_FOLDERS.has(f.name));
 
-  if (prefix === rawPrefix + "/") {
+  if (atRoot) {
     folders.sort((a, b) => {
       if (a.date && b.date && a.date !== b.date) return a.date < b.date ? 1 : -1;
       if (a.date && !b.date) return -1;
@@ -57,6 +66,7 @@ export function mapListing(
       uploaded: o.lastModified.toISOString(),
       date: batchDate(o.key, rawPrefix),
       meta: lookup(o.key),
+      tags: tagsFor(batchName(o.key, rawPrefix)),
     }))
     .sort((a, b) => compareNames(a.name, b.name));
 

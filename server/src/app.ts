@@ -88,7 +88,7 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     const prefix = validatePrefix(req.query.prefix, config.rawPrefix);
     // The B2 listing and the Registry check run side by side; the Registry never fails a listing.
     const [raw] = await Promise.all([b2.list(prefix), registry?.refresh()]);
-    res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup));
+    res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup, registry?.tagsFor));
   });
 
   // Whether Registry metadata is available, so the browser can show a warning when it is not.

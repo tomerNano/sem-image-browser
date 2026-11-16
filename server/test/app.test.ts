@@ -200,3 +200,10 @@ test("zip download refuses a form posted from another website", async () => {
     .send(zipForm([p + "cell_1.tiff"]));
   expect(res.status).toBe(403);
 });
+
+test("listing adds split tags to root folders", async () => {
+  const registry = createRegistry(null, 0, { name: "tags", load: async () => ({ version: "1", text: "split,tag\n2026-10-06_b_ns-lab_b001,10-3\n" }) });
+  const b2 = fakeB2({ "yeast/2026-10-06_b_ns-lab_b001/raw/cell_1.tiff": Buffer.from("x") });
+  const res = await request(createApp({ config, b2, registry })).get("/api/list").query({ prefix: "yeast/" });
+  expect(res.body.folders[0].tags).toEqual(["10-3"]);
+});

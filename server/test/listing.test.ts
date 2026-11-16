@@ -32,5 +32,16 @@ test("raw folder: hides .cache and non-TIFF, natural sort, carries batch date", 
     uploaded: d.toISOString(),
     date: "2026-10-06",
     meta: null,
+    tags: [],
   });
+});
+
+test("root folders and files carry their split's tags; sub-folders have none", () => {
+  const tagsFor = (s: string) => (s === "2026-10-06_b_ns-lab_b001" ? ["10-3"] : []);
+  const root = mapListing("yeast/", "yeast", { prefixes: ["yeast/2026-10-06_b_ns-lab_b001/", "yeast/old/"], objects: [] }, undefined, tagsFor);
+  expect(root.folders.map((f) => f.tags)).toEqual([["10-3"], []]);
+  const p = "yeast/2026-10-06_b_ns-lab_b001/";
+  const inside = mapListing(p, "yeast", { prefixes: [p + "raw/"], objects: [{ key: p + "cell_1.tiff", size: 1, lastModified: d }] }, undefined, tagsFor);
+  expect(inside.folders[0].tags).toEqual([]);
+  expect(inside.files[0].tags).toEqual(["10-3"]);
 });

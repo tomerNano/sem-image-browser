@@ -34,13 +34,17 @@ export function validatePrefix(value: unknown, rawPrefix: string): string {
   return prefix;
 }
 
+/** Name of the batch (split) a path belongs to: the segment right after "<rawPrefix>/". */
+export function batchName(path: string, rawPrefix: string): string {
+  return path.slice(rawPrefix.length + 1).split("/")[0] ?? "";
+}
+
 /**
  * Acquisition date of the batch a path belongs to: the YYYY-MM-DD at the start of the
  * segment right after "<rawPrefix>/", only if it is a real calendar date.
  */
 export function batchDate(path: string, rawPrefix: string): string | null {
-  const batch = path.slice(rawPrefix.length + 1).split("/")[0];
-  const match = /^(\d{4})-(\d{2})-(\d{2})_/.exec(batch ?? "");
+  const match = /^(\d{4})-(\d{2})-(\d{2})_/.exec(batchName(path, rawPrefix));
   if (!match) {
     return null;
   }
