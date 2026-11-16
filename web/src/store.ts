@@ -13,7 +13,7 @@ import {
   type SortDir,
 } from "./lib/fields";
 import { hasTag, inDateRange, matchesSearch, sortFolders } from "./lib/rows";
-import type { FileEntry, FolderEntry, ListResult, RegistryStatus } from "./types";
+import type { FileEntry, FolderEntry, ListResult, RegistryStatus, SplitImages } from "./types";
 
 /** Where browsing starts, told by the server (GET /api/root), e.g. { prefix: "SEM-DATA/yeast/", name: "yeast" }. */
 export type Root = { prefix: string; name: string };
@@ -34,7 +34,11 @@ export type ViewerState = {
 export type StoreApi = {
   listFolder(prefix: string): Promise<ListResult>;
   getRegistryStatus(): Promise<RegistryStatus>;
+  getSplitImages(): Promise<SplitImages>;
 };
+
+/** How many of a split's Registry images pass the Field filters. */
+export type SplitMatch = { matched: number; total: number };
 
 /**
  * Items per page (folders first, then files). A page bounds the DOM and the thumbnail requests;
@@ -134,25 +138,74 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
   /** Every folder of the current listing, before search and filters (the tag filter options read it). */
   const listedFolders = createMemo<FolderEntry[]>(() => (listing.error ? [] : (listing()?.folders ?? [])));
 
-  const visibleFolders = createMemo<FolderEntry[]>(() => {
-    const atRoot = currentPrefix() === root().prefix;
-    const shown = listedFolders().filter(
-      (f) =>
-        matchesSearch(f.name, search()) &&
-        (!atRoot || (inDateRange(f.date, dateFrom(), dateTo()) && hasTag(f.tags, tagFilter()))),
+  const atRoot = () => currentPrefix() !== "" && currentPrefix() === root().prefix;
+
+  // Registry images of every split, loaded once per page: the Field filters hide splits with no
+  // matching image (top-level list and tree). A failed load leaves the splits unfiltered.
+  const [splitImages] = createResource(() => root().prefix || false, () => api.getSplitImages());
+
+  /** Split images as file entries, so the Field filters and their choices treat them like files. */
+  const splitFiles = createMemo<Record<string, FileEntry[]>>(() => {
+    const data = splitImages.error ? undefined : splitImages();
+    const bySplit: Record<string, FileEntry[]> = {};
+    for (const [split, images] of Object.entries(data ?? {})) {
+      bySplit[split] = images.map(({ key, meta }) => ({
+        name: key.slice(key.lastIndexOf("/") + 1),
+        key,
+        size: 0,
+        uploaded: "",
+        date: null,
+        meta,
+        tags: [],
+      }));
+    }
+    return bySplit;
+  });
+
+  /**
+   * How many of the split's images pass the Field filters; null when no Field filter is set or
+   * the split images have not loaded (then the Field filters hide no split).
+   */
+  function splitMatch(split: string): SplitMatch | null {
+    if (fieldFilterCount(filters()) === 0 || splitImages.error || !splitImages()) return null;
+    const images = splitFiles()[split] ?? [];
+    return { matched: images.filter((f) => matchesFilters(f, filters())).length, total: images.length };
+  }
+
+  /** Whether a split (top-level folder) passes the batch date, the tag and the Field filters. */
+  function passesBatchFilters(folder: FolderEntry): boolean {
+    const match = splitMatch(folder.name);
+    return (
+      inDateRange(folder.date, dateFrom(), dateTo()) &&
+      hasTag(folder.tags, tagFilter()) &&
+      (match === null || match.matched > 0)
     );
+  }
+
+  const visibleFolders = createMemo<FolderEntry[]>(() => {
+    const shown = listedFolders().filter((f) => matchesSearch(f.name, search()) && (!atRoot() || passesBatchFilters(f)));
     return userSorted() ? sortFolders(shown, sortColumn(), sortDir()) : shown;
   });
 
   const folderFiles = createMemo<FileEntry[]>(() => (listing.error ? [] : (listing()?.files ?? [])));
+
+  /** Where the Field filter choices come from: every split's images at the top level, else this folder's files. */
+  const filterFiles = createMemo<FileEntry[]>(() => (atRoot() ? Object.values(splitFiles()).flat() : folderFiles()));
 
   const visibleFiles = createMemo<FileEntry[]>(() => {
     const shown = folderFiles().filter((f) => matchesSearch(f.name, search()) && matchesFilters(f, filters()));
     return sortFiles(shown, sortColumn(), sortDir());
   });
 
-  /** Files of this folder that the Field filters hide (search hides are not counted). */
-  const hiddenByFilters = createMemo(() => folderFiles().filter((f) => !matchesFilters(f, filters())).length);
+  /**
+   * Items the Field filters hide (search hides are not counted): splits with no matching image at
+   * the top level, else files of this folder.
+   */
+  const hiddenByFilters = createMemo(() =>
+    atRoot()
+      ? listedFolders().filter((f) => splitMatch(f.name)?.matched === 0).length
+      : folderFiles().filter((f) => !matchesFilters(f, filters())).length,
+  );
 
   /** Ids of the visible items in display order: folders first, then files. */
   const visibleIds = createMemo(() => [...visibleFolders().map((f) => f.prefix), ...visibleFiles().map((f) => f.key)]);
@@ -347,6 +400,9 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
     visibleFolders,
     visibleFiles,
     folderFiles,
+    filterFiles,
+    splitMatch,
+    passesBatchFilters,
     hiddenByFilters,
     filters,
     setFilter: (id: FieldId, value: FilterValue) => setFilters((f) => ({ ...f, [id]: value })),

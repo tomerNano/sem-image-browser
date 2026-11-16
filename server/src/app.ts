@@ -97,6 +97,14 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup, registry?.tagsFor));
   });
 
+  // Registry images by split, so the browser can filter splits at the top level without B2 calls.
+  // no-cache: the browser keeps a copy but asks each time; Express's ETag turns an unchanged
+  // answer into a 304 with no body.
+  app.get("/api/split-images", async (_req, res) => {
+    await registry?.refresh();
+    res.set("Cache-Control", "private, no-cache").json({ splits: registry?.imagesBySplit() ?? {} });
+  });
+
   // Whether Registry metadata is available, so the browser can show a warning when it is not.
   app.get("/api/registry", async (_req, res) => {
     await registry?.refresh();

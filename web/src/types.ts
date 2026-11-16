@@ -38,6 +38,11 @@ export type FileEntry = {
 };
 export type ListResult = { folders: FolderEntry[]; files: FileEntry[] };
 
+/** One Registry image of a split (GET /api/split-images): its raw B2 key and its metadata. */
+export type SplitImage = { key: string; meta: ImageMeta };
+/** Registry images by split name. */
+export type SplitImages = Record<string, SplitImage[]>;
+
 export type RegistryStatus = {
   configured: boolean;
   loaded: boolean;

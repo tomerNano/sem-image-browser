@@ -3,6 +3,7 @@ import { thumbUrl } from "../api";
 import { field, MISSING } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon } from "./Icons";
+import SplitMatchCount from "./SplitMatchCount";
 
 /**
  * A long name like "2026-10-19_miluda_5b_background_ns-lab_b001" has no spaces, so the browser
@@ -51,6 +52,7 @@ export default function IconsView() {
               <span class="caption-name">
                 <WrappableName name={folder.name} />
               </span>
+              <SplitMatchCount name={folder.name} />
             </div>
           </div>
         )}

@@ -14,7 +14,7 @@ function ChoiceFilter(props: { field: Field }) {
   return (
     <select value={chosen()} onChange={(e) => store.setFilter(props.field.id, e.currentTarget.value)}>
       <option value="">Any</option>
-      <For each={choices(props.field, store.folderFiles(), chosen())}>{(v) => <option value={v}>{v}</option>}</For>
+      <For each={choices(props.field, store.filterFiles(), chosen())}>{(v) => <option value={v}>{v}</option>}</For>
     </select>
   );
 }
@@ -46,8 +46,8 @@ function RangeFilter(props: { field: Field; unit: string }) {
 }
 
 /**
- * Field filters in the filter panel, under the date filter. They hide files of the current folder;
- * folders are never hidden.
+ * Field filters in the filter panel, under the date filter. Inside a folder they hide its files;
+ * at the top level they hide splits with no matching image (see `splitMatch` in store.ts).
  */
 export default function FieldFilters() {
   return (

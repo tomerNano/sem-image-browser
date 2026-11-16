@@ -653,6 +653,18 @@ ul {
   padding-right: 8px;
 }
 
+/* "23 of 172 match" after a split's name while a Field filter is set. */
+.match-count {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* In a Large icons caption the count is its own line under the name. */
+.caption .match-count {
+  margin-left: 0;
+}
+
 .details th.num,
 .details td.num {
   text-align: right;

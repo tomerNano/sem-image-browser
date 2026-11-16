@@ -2,6 +2,7 @@ import { createEffect, For } from "solid-js";
 import { FIELDS, type Field, type FieldId } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon, ImageIcon } from "./Icons";
+import SplitMatchCount from "./SplitMatchCount";
 import TagPills from "./TagPills";
 
 /**
@@ -117,6 +118,7 @@ export default function DetailsView() {
                         </span>
                         {folder.name}
                       </span>
+                      <SplitMatchCount name={folder.name} />
                     </td>
                   ) : col.column!.cell === "tags" ? (
                     <td>

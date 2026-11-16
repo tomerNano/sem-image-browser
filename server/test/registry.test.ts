@@ -197,3 +197,20 @@ test("a split_tags.csv with a wrong header and no rows keeps the last good tags"
   await reg.refresh();
   expect(reg.tagsFor("b1")).toEqual(["10-3", "ctrl"]);
 });
+
+test("imagesBySplit groups Registry images by their split, every variant included", async () => {
+  const header = "image_id,b2_key,current_split,image_variant,width_px,height_px";
+  const text = [
+    header,
+    "i1,yeast/s1/raw/cell_1.tiff,s1,raw,1920,1200",
+    "i2,yeast/s1/raw/cell_2.tiff,s1,raw,7680,5100",
+    "i3,yeast/s2/raw/cell_1.tiff,s2,raw,1920,1200",
+    "i4,yeast/s2/raw/cell_9.tiff,,raw,1920,1200",
+  ].join("\n");
+  const reg = createRegistry(memorySource(text).source, 0);
+  await reg.refresh();
+  const bySplit = reg.imagesBySplit();
+  expect(Object.keys(bySplit).sort()).toEqual(["s1", "s2"]);
+  expect(bySplit.s1.map((i) => i.key)).toEqual(["yeast/s1/raw/cell_1.tiff", "yeast/s1/raw/cell_2.tiff"]);
+  expect(bySplit.s1[1].meta).toMatchObject({ widthPx: 7680, heightPx: 5100, split: "s1" });
+});
