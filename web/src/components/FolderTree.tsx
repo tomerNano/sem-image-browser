@@ -1,6 +1,6 @@
 import { createEffect, createResource, createSignal, For, Show } from "solid-js";
 import { listFolder } from "../api";
-import { inDateRange } from "../lib/rows";
+import { hasTag, inDateRange } from "../lib/rows";
 import { store } from "../store";
 import { ChevronIcon, FolderIcon } from "./Icons";
 import SidebarToggle from "./SidebarToggle";
@@ -23,7 +23,7 @@ function TreeNode(props: NodeProps) {
   const visibleChildren = () => {
     const folders = children.error ? [] : (children()?.folders ?? []);
     if (!isRoot) return folders;
-    return folders.filter((f) => inDateRange(f.date, store.dateFrom(), store.dateTo()));
+    return folders.filter((f) => inDateRange(f.date, store.dateFrom(), store.dateTo()) && hasTag(f.tags, store.tagFilter()));
   };
 
   return (

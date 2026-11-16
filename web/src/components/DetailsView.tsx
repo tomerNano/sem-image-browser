@@ -1,18 +1,24 @@
 import { createEffect, For } from "solid-js";
-import { FIELDS, type Field } from "../lib/fields";
+import { FIELDS, type Field, type FieldId } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon, ImageIcon } from "./Icons";
+import TagPills from "./TagPills";
 
 /**
- * Details columns: every Field marked as a column, in table order. Date shows only at the top
- * level: inside a batch every file has the batch date, which the folder path already shows.
- * With no files shown (folders only), only the columns a folder fills in (name, date) remain.
+ * Batch Fields (Date, Tag) are Details columns only at the top level: inside a batch every file
+ * has the same batch date and tags, which the folder already tells.
+ */
+const ROOT_ONLY: ReadonlySet<FieldId> = new Set(["date", "tag"]);
+
+/**
+ * Details columns: every Field marked as a column, in table order, batch Fields only at the top
+ * level. With no files shown (folders only), only the columns a folder fills in remain.
  */
 const columns = () =>
   FIELDS.filter(
     (f) =>
       f.column &&
-      (f.id !== "date" || !store.canUp()) &&
+      (!ROOT_ONLY.has(f.id) || !store.canUp()) &&
       (store.visibleFiles().length > 0 || f.folder !== undefined),
   );
 
@@ -107,6 +113,10 @@ export default function DetailsView() {
                         {folder.name}
                       </span>
                     </td>
+                  ) : col.column!.cell === "tags" ? (
+                    <td>
+                      <TagPills tags={folder.tags} />
+                    </td>
                   ) : (
                     <td class={cellClass(col)}>{col.folder?.(folder) ?? ""}</td>
                   )
@@ -135,6 +145,10 @@ export default function DetailsView() {
                         <ImageIcon />
                         {file.name}
                       </span>
+                    </td>
+                  ) : col.column!.cell === "tags" ? (
+                    <td>
+                      <TagPills tags={file.tags} />
                     </td>
                   ) : (
                     <td class={cellClass(col)}>{col.format(file)}</td>

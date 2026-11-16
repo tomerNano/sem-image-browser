@@ -5,6 +5,7 @@ import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
 import type { FileEntry, ListResult } from "../types";
 import { CheckIcon, CopyIcon, FolderIcon, ImageIcon } from "./Icons";
+import TagPills from "./TagPills";
 
 function lastPart(prefix: string): string {
   const parts = prefix.split("/").filter(Boolean);
@@ -33,8 +34,17 @@ function FieldGroup(props: { group: PreviewGroup; file: FileEntry }) {
           {(f) => (
             <>
               <dt>{f.label}</dt>
-              {/* Measured values (numbers with units) in mono, text in the UI face. */}
-              <dd classList={{ mono: typeof f.value(props.file) === "number" }}>{f.format(props.file)}</dd>
+              <Show
+                when={f.column?.cell !== "tags"}
+                fallback={
+                  <dd>
+                    <TagPills tags={props.file.tags} />
+                  </dd>
+                }
+              >
+                {/* Measured values (numbers with units) in mono, text in the UI face. */}
+                <dd classList={{ mono: typeof f.value(props.file) === "number" }}>{f.format(props.file)}</dd>
+              </Show>
             </>
           )}
         </For>
@@ -136,6 +146,10 @@ export default function PreviewPane() {
     const s = store.selected();
     return s?.kind === "folder" ? s.entry.prefix : false;
   };
+  const selectedFolderTags = () => {
+    const s = store.selected();
+    return s?.kind === "folder" ? s.entry.tags : [];
+  };
   const selectedFile = () => {
     const s = store.selected();
     return s?.kind === "file" ? s.entry : undefined;
@@ -164,6 +178,15 @@ export default function PreviewPane() {
                 <h4>{lastPart(prefix)}</h4>
               </div>
               <p>{folderListing.error ? "Could not load" : count(folderListing())}</p>
+              {/* Batches (top level only) show their Registry tags. */}
+              <Show when={!store.canUp()}>
+                <dl class="preview-meta">
+                  <dt>Tag</dt>
+                  <dd>
+                    <TagPills tags={selectedFolderTags()} />
+                  </dd>
+                </dl>
+              </Show>
               <div class="preview-actions">
                 <button class="action primary" onClick={() => store.navigate(prefix)}>
                   Open <kbd>Enter</kbd>

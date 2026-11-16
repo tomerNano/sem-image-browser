@@ -4,11 +4,12 @@ import { store } from "../store";
 
 type Chip = { label: string; value: string; remove: () => void };
 
-/** One chip per set filter (batch dates and Fields), each with its own remove button. */
+/** One chip per set filter (batch dates, batch tag and Fields), each with its own remove button. */
 function chips(): Chip[] {
   const out: Chip[] = [];
   if (store.dateFrom()) out.push({ label: "From", value: store.dateFrom(), remove: () => store.setDateFrom("") });
   if (store.dateTo()) out.push({ label: "To", value: store.dateTo(), remove: () => store.setDateTo("") });
+  if (store.tagFilter()) out.push({ label: "Tag", value: store.tagFilter(), remove: () => store.setTagFilter("") });
   const filters = store.filters();
   for (const f of FIELDS) {
     const value = filterSummary(f, filters[f.id]);

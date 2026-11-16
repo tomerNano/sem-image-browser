@@ -1249,3 +1249,47 @@ kbd {
   }
 
 }
+
+/* Split tags: one neutral pill per tag, the same for every value (no meaning in color). */
+:root {
+  --pill-bg: #f1f2f5;
+  --pill-border: #e3e5ea;
+}
+
+.tag-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--pill-bg);
+  border: 1px solid var(--pill-border);
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tag-none {
+  color: var(--muted);
+}
+
+.tag-filter {
+  padding-top: 0;
+}
+
+.tag-filter select {
+  width: 128px;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
