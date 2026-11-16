@@ -75,3 +75,20 @@ export function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/**
+ * Text shown while a preview is being made: the original's size (big files take longer), then the
+ * whole seconds waited so far, so the user sees the wait is moving.
+ *
+ * Args:
+ *   sizeBytes: Size of the original file.
+ *   elapsedMs: Time since the preview was asked for.
+ *
+ * Returns:
+ *   For example "Preparing preview · 78.0 MB original · 12 s".
+ */
+export function preparingLabel(sizeBytes: number, elapsedMs: number): string {
+  const seconds = Math.floor(elapsedMs / 1000);
+  const base = `Preparing preview · ${formatSize(sizeBytes)} original`;
+  return seconds >= 1 ? `${base} · ${seconds} s` : base;
+}

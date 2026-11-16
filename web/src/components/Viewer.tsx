@@ -4,6 +4,7 @@ import { field, type FieldId } from "../lib/fields";
 import { scaleBar } from "../lib/scale";
 import { store } from "../store";
 import { NextIcon, PrevIcon } from "./Icons";
+import PreparingBadge from "./PreparingBadge";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
@@ -142,6 +143,7 @@ export default function Viewer(props: { fileKey: string }) {
         </Show>
         <Show when={!loaded() && !failed()}>
           <img class="placeholder" src={thumbUrl(props.fileKey, uploaded())} alt="" draggable={false} style={transform()} />
+          <PreparingBadge size={file()?.size ?? 0} />
         </Show>
         <img
           classList={{ hidden: failed(), loading: !loaded() }}

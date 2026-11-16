@@ -5,6 +5,7 @@ import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
 import type { FileEntry, ListResult } from "../types";
 import { CheckIcon, CopyIcon, FolderIcon, ImageIcon } from "./Icons";
+import PreparingBadge from "./PreparingBadge";
 import TagPills from "./TagPills";
 
 function lastPart(prefix: string): string {
@@ -93,6 +94,9 @@ function FilePreview(props: { file: FileEntry }) {
             onLoad={() => setLoaded(true)}
             onError={() => setFailed(true)}
           />
+          <Show when={!loaded()}>
+            <PreparingBadge size={props.file.size} />
+          </Show>
         </Show>
       </div>
       <div class="preview-title">

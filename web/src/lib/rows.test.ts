@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../types";
-import { hasTag, sortFolders, tagChoices } from "./rows";
+import { hasTag, preparingLabel, sortFolders, tagChoices } from "./rows";
 
 const f = (name: string, date: string | null, tags: string[] = []): FolderEntry => ({ name, prefix: `r/${name}/`, date, tags });
 const batches = [f("2026-10-06_b", "2026-10-06"), f("old", null), f("2026-10-19_a", "2026-10-19")];
@@ -36,4 +36,9 @@ test("tagChoices: distinct tags in natural order, chosen kept when absent", () =
 test("sortFolders by tag: first tag order, untagged last", () => {
   const out = sortFolders([f("a", null), f("b", null, ["10-5"]), f("c", null, ["10-3"])], "tag", "asc");
   expect(out.map((x) => x.name)).toEqual(["c", "b", "a"]);
+});
+
+test("preparingLabel: original size, then whole seconds waited once the first second has passed", () => {
+  expect(preparingLabel(78 * 1024 * 1024, 400)).toBe("Preparing preview · 78.0 MB original");
+  expect(preparingLabel(78 * 1024 * 1024, 12_700)).toBe("Preparing preview · 78.0 MB original · 12 s");
 });
