@@ -43,6 +43,24 @@ const splitGroupsOnce = memoByKey(fetchSplitGroups, SPLIT_GROUPS_TTL_MS);
 /** Image groups by split, shared by every caller for SPLIT_GROUPS_TTL_MS. */
 export const getSplitGroups = () => splitGroupsOnce("all");
 
+// Messages already sent from this page: each error is reported once, not on every repeat.
+const reportedErrors = new Set<string>();
+
+/**
+ * Sends an error the user saw (an image that failed, an uncaught script error) to the server log.
+ * Each message once per page; failures to report are ignored (the page must keep working).
+ */
+export function reportClientError(message: string): void {
+  if (reportedErrors.has(message)) return;
+  reportedErrors.add(message);
+  fetch("/api/client-error", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 /** Whether the server has Registry metadata (for the status bar warning). */
 export async function getRegistryStatus(): Promise<RegistryStatus> {
   const res = await fetch("/api/registry");

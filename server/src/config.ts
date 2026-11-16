@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { LogLevel } from "./log.js";
 
 export type Config = {
   accessKeyId: string;
@@ -14,6 +15,10 @@ export type Config = {
   cacheMaxBytes: number;
   /** Where images.csv comes from; null when neither REGISTRY_CSV_PATH nor REGISTRY_GITHUB_TOKEN is set. */
   registry: RegistryConfig | null;
+  /** Lowest level written to the log. */
+  logLevel: LogLevel;
+  /** Log file the lines are appended to; null = console only. */
+  logFile: string | null;
 };
 
 /** A local file (a Registry clone, for development) or the GitHub API with a read-only token. */
@@ -37,6 +42,11 @@ const REQUIRED = [
 ] as const;
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
+const LOG_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error"];
+const DEFAULT_LOG_FILE = path.join("logs", "server.log");
+/** LOG_FILE value that turns the log file off (console only). */
+const LOG_FILE_OFF = "off";
 
 /**
  * Build the app configuration from environment variables.
@@ -85,7 +95,24 @@ export function loadConfig(env: Env, rootDir: string): Config {
     cacheDir: path.isAbsolute(cacheDir) ? cacheDir : path.join(rootDir, cacheDir),
     cacheMaxBytes: cacheMaxMb * 1024 * 1024,
     registry: loadRegistryConfig(env, rootDir),
+    logLevel: loadLogLevel(env),
+    logFile: loadLogFile(env, rootDir),
   };
+}
+
+/** LOG_LEVEL in any case; default info. */
+function loadLogLevel(env: Env): LogLevel {
+  const text = (env.LOG_LEVEL?.trim() || "info").toLowerCase();
+  const level = LOG_LEVELS.find((l) => l === text);
+  if (!level) throw new Error(`LOG_LEVEL must be one of ${LOG_LEVELS.join(", ")}`);
+  return level;
+}
+
+/** LOG_FILE resolved against rootDir; default logs/server.log, "off" = no file. */
+function loadLogFile(env: Env, rootDir: string): string | null {
+  const text = env.LOG_FILE?.trim() || DEFAULT_LOG_FILE;
+  if (text.toLowerCase() === LOG_FILE_OFF) return null;
+  return path.isAbsolute(text) ? text : path.join(rootDir, text);
 }
 
 /** REGISTRY_CSV_PATH (local override) wins; else REGISTRY_GITHUB_TOKEN turns on the GitHub source. */

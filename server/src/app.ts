@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -8,6 +9,7 @@ import { HttpError } from "./errors.js";
 import type { ImageRenderer, ImageSize } from "./images.js";
 import { validateKey, validatePrefix } from "./keys.js";
 import { mapListing } from "./listing.js";
+import { log, sizeText, withRequestId } from "./log.js";
 import type { Registry } from "./registry.js";
 import { createZip, zipName } from "./zip.js";
 
@@ -22,14 +24,43 @@ const IMAGE_CACHE_CONTROL = "private, max-age=86400";
 
 export type AppDeps = { config: Config; b2: B2; images?: ImageRenderer; registry?: Registry; webDist?: string };
 
-/** Logs one line per request: method, path, status, duration. */
+/** Random bytes in a request id: 3 bytes = 6 hex characters, enough to tell requests apart in a log. */
+const REQUEST_ID_BYTES = 3;
+
+/** Longest browser error message kept in the log. */
+const MAX_CLIENT_ERROR_LENGTH = 300;
+/** Browser error reports accepted per minute; more are dropped so a broken page cannot flood the log. */
+const MAX_CLIENT_ERRORS_PER_MINUTE = 60;
+const MINUTE_MS = 60_000;
+
+/**
+ * Gives each request an id that every log line written for it carries (B2 calls, renders), and
+ * logs one line when it ends: method, path, status, time, size. API requests are INFO; the
+ * website's own files (JS, CSS, fonts) only at DEBUG. A response the browser broke off is marked.
+ */
 function requestLog(req: Request, res: Response, next: NextFunction): void {
   const start = Date.now();
-  res.on("finish", () => {
-    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start}ms`);
+  const id = randomBytes(REQUEST_ID_BYTES).toString("hex");
+  withRequestId(id, () => {
+    res.on("close", () => {
+      const length = Number(res.getHeader("Content-Length"));
+      const size = Number.isFinite(length) ? sizeText(length) : "-";
+      const cut = res.writableFinished ? "" : " (cancelled by the browser)";
+      const line = `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start} ms ${size}${cut}`;
+      if (req.originalUrl.startsWith("/api/")) log.info(line);
+      else log.debug(line);
+    });
+    next();
   });
-  next();
 }
+
+/** True when a stream to the browser failed because the browser closed it (cancel, page closed). */
+function cancelledByBrowser(err: unknown): boolean {
+  return (err as { code?: string })?.code === "ERR_STREAM_PREMATURE_CLOSE";
+}
+
+/** Seconds since `start`, with one decimal. */
+const secondsSince = (start: number) => ((Date.now() - start) / 1000).toFixed(1);
 
 // Everything the page needs comes from this server. Inline data: covers small assets Vite inlines.
 const CONTENT_SECURITY_POLICY = [
@@ -64,6 +95,7 @@ const ALLOWED_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
  */
 function hostCheck(req: Request, _res: Response, next: NextFunction): void {
   if (!ALLOWED_HOSTS.has(req.hostname ?? "")) {
+    log.warn(`Refused request for host "${req.hostname ?? ""}" (not in ALLOWED_HOSTS): ${req.method} ${req.originalUrl}`);
     next(new HttpError(403, "Host not allowed"));
     return;
   }
@@ -114,15 +146,18 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
   // The original TIFF, streamed unchanged from B2 to the browser (never held fully in memory).
   app.get("/api/download", async (req, res) => {
     const key = validateKey(req.query.key, config.rawPrefix);
+    const start = Date.now();
     const { body, size } = await b2.getStream(key);
     res.attachment(key.slice(key.lastIndexOf("/") + 1));
     res.type("image/tiff");
     if (size > 0) res.set("Content-Length", String(size));
     try {
       await pipeline(body, res);
+      log.info(`Download ${key}: ${sizeText(size)} in ${secondsSince(start)} s`);
     } catch (err) {
       // Headers are already sent, so no error page is possible: log and drop the connection.
-      console.error(`Download of ${key} failed:`, err);
+      if (cancelledByBrowser(err)) log.info(`Download ${key} cancelled by the browser after ${secondsSince(start)} s`);
+      else log.error(`Download of ${key} failed after ${secondsSince(start)} s`, err);
       res.destroy();
     }
   });
@@ -135,7 +170,10 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     async (req, res) => {
       // Another website could post this form too; browsers mark such requests as cross-site.
       const site = req.get("Sec-Fetch-Site");
-      if (site && site !== "same-origin") throw new HttpError(403, "Cross-site request refused");
+      if (site && site !== "same-origin") {
+        log.warn(`Refused zip download posted from another site (Sec-Fetch-Site: ${site})`);
+        throw new HttpError(403, "Cross-site request refused");
+      }
 
       const raw: unknown = req.body?.key;
       const values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
@@ -159,10 +197,14 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
       res.attachment(zipName(folder));
       const total = await size;
       if (total >= 0) res.set("Content-Length", String(total));
+      const start = Date.now();
+      log.info(`Zip ${folder}: ${keys.length} files, ${sizeText(Math.max(total, 0))}, started`);
       try {
         await pipeline(output, res);
+        log.info(`Zip ${folder}: finished in ${secondsSince(start)} s`);
       } catch (err) {
-        console.error(`Zip download of ${keys.length} files from ${folder} failed:`, err);
+        if (cancelledByBrowser(err)) log.info(`Zip ${folder} cancelled by the browser after ${secondsSince(start)} s`);
+        else log.error(`Zip download of ${keys.length} files from ${folder} failed after ${secondsSince(start)} s`, err);
         res.destroy();
       }
     },
@@ -178,6 +220,25 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
     app.get("/api/preview", sendImage("preview"));
   }
 
+  // Errors the browser saw (an image that failed to load, an uncaught script error), so they show
+  // up in the server log too. Same site only, small bodies, and at most 60 a minute.
+  let clientErrorWindowStart = 0;
+  let clientErrorsInWindow = 0;
+  app.post("/api/client-error", express.json({ limit: "2kb" }), (req, res) => {
+    const site = req.get("Sec-Fetch-Site");
+    if (site && site !== "same-origin") throw new HttpError(403, "Cross-site request refused");
+    const message: unknown = req.body?.message;
+    if (typeof message !== "string" || message.trim() === "") throw new HttpError(400, "Missing message");
+    if (Date.now() - clientErrorWindowStart >= MINUTE_MS) {
+      clientErrorWindowStart = Date.now();
+      clientErrorsInWindow = 0;
+    }
+    clientErrorsInWindow++;
+    if (clientErrorsInWindow > MAX_CLIENT_ERRORS_PER_MINUTE) throw new HttpError(429, "Too many error reports");
+    log.warn(`Browser: ${message.slice(0, MAX_CLIENT_ERROR_LENGTH)}`);
+    res.status(204).end();
+  });
+
   app.use("/api", (_req, _res, next) => next(new HttpError(404, "Not found")));
 
   // Production: the same process serves the built frontend. Any other GET gets index.html.
@@ -190,11 +251,11 @@ export function createApp({ config, b2, images, registry, webDist }: AppDeps): e
   // the full error (with its cause) goes to the server log only.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof HttpError) {
-      if (err.status >= 500) console.error(err.cause ?? err);
+      if (err.status >= 500) log.error(`${err.status} ${err.message}`, err.cause ?? err);
       res.status(err.status).json({ error: err.message });
       return;
     }
-    console.error(err);
+    log.error("500 Internal error", err);
     res.status(500).json({ error: "Internal error" });
   });
 

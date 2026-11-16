@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
-import { downloadUrl, previewUrl, thumbUrl } from "../api";
+import { downloadUrl, previewUrl, reportClientError, thumbUrl } from "../api";
 import { field, type FieldId } from "../lib/fields";
 import { scaleBar } from "../lib/scale";
 import { store } from "../store";
@@ -152,7 +152,10 @@ export default function Viewer(props: { fileKey: string }) {
             if (img.naturalHeight > 0) setRatio(img.naturalWidth / img.naturalHeight);
             setLoaded(true);
           }}
-          onError={() => setFailed(true)}
+          onError={() => {
+            setFailed(true);
+            reportClientError(`Viewer image failed to load: ${props.fileKey}`);
+          }}
           src={previewUrl(props.fileKey, uploaded())}
           alt={file()?.name ?? ""}
           draggable={false}

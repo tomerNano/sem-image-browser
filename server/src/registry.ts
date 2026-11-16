@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { parseCsv } from "./csv.js";
+import { log } from "./log.js";
 
 /** What the GUI shows for one image, taken from one row of the Registry's images.csv. */
 export type ImageMeta = {
@@ -274,13 +275,15 @@ export function createRegistry(
       if (result !== "unchanged") {
         tagsBySplit = parseSplitTags(result.text);
         tagsVersion = result.version;
-        console.log(`Registry tags loaded: ${tagsBySplit.size} splits from ${s.name}`);
+        log.info(`Registry tags loaded: ${tagsBySplit.size} splits from ${s.name}`);
+      } else {
+        log.debug(`Registry tags ${s.name}: unchanged`);
       }
       tagsError = null;
     } catch (err) {
       const message = (err as Error).message;
       // Log a failure once, not on every listing request while it lasts.
-      if (message !== tagsError) console.error(`Registry tags ${s.name}: ${message}`, (err as Error).cause ?? "");
+      if (message !== tagsError) log.error(`Registry tags ${s.name}: ${message}`, (err as Error).cause ?? undefined);
       tagsError = message;
     }
   }
@@ -302,13 +305,16 @@ export function createRegistry(
         groups = groupBySplit(images);
         rows = records.length;
         version = result.version;
-        console.log(`Registry loaded: ${rows} rows from ${s.name}`);
+        const groupCount = Object.values(groups).reduce((sum, g) => sum + g.length, 0);
+        log.info(`Registry loaded: ${rows} rows, ${groupCount} filter groups in ${Object.keys(groups).length} splits from ${s.name}`);
+      } else {
+        log.debug(`Registry ${s.name}: unchanged`);
       }
       error = null;
     } catch (err) {
       const message = (err as Error).message;
       // Log a failure once, not on every listing request while it lasts.
-      if (message !== error) console.error(`Registry ${s.name}: ${message}`, (err as Error).cause ?? "");
+      if (message !== error) log.error(`Registry ${s.name}: ${message}`, (err as Error).cause ?? undefined);
       error = message;
     }
   }

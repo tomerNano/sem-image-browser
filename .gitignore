@@ -1,6 +1,7 @@
 node_modules/
 .env
 .cache-images/
+logs/
 dist/
 .superpowers/
 .claude/

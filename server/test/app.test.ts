@@ -4,6 +4,7 @@ import path from "node:path";
 import request from "supertest";
 import { expect, test } from "vitest";
 import { createApp } from "../src/app.js";
+import { configureLog } from "../src/log.js";
 import { createRegistry } from "../src/registry.js";
 import { fakeB2, testConfig as config } from "./fakeB2.js";
 
@@ -223,4 +224,56 @@ test("split-groups gives the image groups by split, and 304 when unchanged", asy
 test("split-groups without a Registry is empty", async () => {
   const res = await request(createApp({ config, b2: fakeB2({}) })).get("/api/split-groups");
   expect(res.body).toEqual({ splits: {} });
+});
+
+/** Collect log lines at debug level while `fn` runs. */
+async function logsOf(fn: () => Promise<unknown>): Promise<string[]> {
+  const lines: string[] = [];
+  configureLog({ level: "debug", write: (line) => lines.push(line) });
+  try {
+    await fn();
+  } finally {
+    configureLog({ level: "info", write: () => {} });
+  }
+  return lines;
+}
+
+test("a browser error report is logged as a warning, cut to 300 characters", async () => {
+  const app = createApp({ config, b2: fakeB2({}) });
+  const lines = await logsOf(async () => {
+    const res = await request(app)
+      .post("/api/client-error")
+      .set("Sec-Fetch-Site", "same-origin")
+      .send({ message: "Image failed to load: " + "x".repeat(400) });
+    expect(res.status).toBe(204);
+  });
+  const warning = lines.find((l) => l.includes("WARN"))!;
+  expect(warning).toContain("Browser: Image failed to load: xxx");
+  expect(warning.length).toBeLessThan(400);
+});
+
+test("browser error reports from another site or without a message are refused", async () => {
+  const app = createApp({ config, b2: fakeB2({}) });
+  const crossSite = await request(app).post("/api/client-error").set("Sec-Fetch-Site", "cross-site").send({ message: "x" });
+  expect(crossSite.status).toBe(403);
+  const empty = await request(app).post("/api/client-error").send({});
+  expect(empty.status).toBe(400);
+});
+
+test("more than 60 browser error reports a minute are dropped", async () => {
+  const app = createApp({ config, b2: fakeB2({}) });
+  const statuses: number[] = [];
+  for (let i = 0; i < 61; i++) statuses.push((await request(app).post("/api/client-error").send({ message: `e${i}` })).status);
+  expect(statuses.slice(0, 60).every((s) => s === 204)).toBe(true);
+  expect(statuses[60]).toBe(429);
+});
+
+test("every request gets one line with a request id, status, time and size; a refused host is a warning", async () => {
+  const app = createApp({ config, b2: fakeB2({ [p + "cell_1.tiff"]: Buffer.from("x") }) });
+  const lines = await logsOf(async () => {
+    await request(app).get("/api/list").query({ prefix: p });
+    await request(app).get("/api/root").set("Host", "evil.example");
+  });
+  expect(lines.some((l) => /INFO  \[[0-9a-f]{6}\] GET \/api\/list\?prefix=\S+ 200 \d+ ms \d/.test(l))).toBe(true);
+  expect(lines.some((l) => l.includes("WARN") && l.includes('Refused request for host "evil.example"'))).toBe(true);
 });

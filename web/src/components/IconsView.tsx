@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js";
-import { thumbUrl } from "../api";
+import { reportClientError, thumbUrl } from "../api";
 import { field, MISSING } from "../lib/fields";
 import { store } from "../store";
 import { FolderIcon } from "./Icons";
@@ -76,7 +76,10 @@ export default function IconsView() {
                 alt=""
                 loading="lazy"
                 decoding="async"
-                onError={(e) => e.currentTarget.parentElement?.classList.add("failed")}
+                onError={(e) => {
+                  e.currentTarget.parentElement?.classList.add("failed");
+                  reportClientError(`Thumbnail failed to load: ${file.key}`);
+                }}
               />
             </div>
             <div class="caption">

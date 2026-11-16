@@ -4,6 +4,7 @@ import { toJpeg } from "./convert.js";
 import { HttpError } from "./errors.js";
 import { cacheSources } from "./keys.js";
 import type { Limiter } from "./limit.js";
+import { log, sizeText } from "./log.js";
 
 export type ImageSize = "thumb" | "preview";
 export type RenderedImage = { body: Buffer; contentType: "image/jpeg" | "image/png" };
@@ -23,6 +24,9 @@ export const MAX_SOURCE_BYTES = 512 * 1024 * 1024;
  * trips. A file replaced in B2 shows its old image for at most this long.
  */
 export const HEAD_TTL_MS = 5 * 60_000;
+
+/** A render slower than this is logged at INFO (always visible), faster ones only at DEBUG. */
+const SLOW_RENDER_MS = 5_000;
 
 /** Most HEAD answers kept in memory; above it, all are dropped and asked again. */
 const MAX_HEAD_ENTRIES = 50_000;
@@ -68,7 +72,10 @@ export function createImageRenderer({
    */
   async function head(key: string): Promise<Head> {
     const remembered = heads.get(key);
-    if (remembered && remembered.expires > Date.now()) return remembered.head;
+    if (remembered && remembered.expires > Date.now()) {
+      log.debug(`HEAD ${key}: reused from memory (${remembered.head ? "found" : "missing"})`);
+      return remembered.head;
+    }
     const answer = await b2.head(key);
     if (heads.size >= MAX_HEAD_ENTRIES) heads.clear();
     heads.set(key, { head: answer, expires: Date.now() + headTtlMs });
@@ -97,22 +104,41 @@ export function createImageRenderer({
     const contentType = passthrough ? "image/png" : "image/jpeg";
     const name = cacheName(sourceKey, size, meta.etag, passthrough ? "png" : "jpg");
     const cached = await cache.get(name);
-    if (cached) return { body: cached, contentType };
+    if (cached) {
+      log.debug(`${size} ${key}: disk cache hit (${sizeText(cached.length)})`);
+      return { body: cached, contentType };
+    }
 
-    if (meta.size > maxSourceBytes) throw new HttpError(422, "Image too large to preview");
+    if (meta.size > maxSourceBytes) {
+      log.warn(`${size} ${key}: source ${sizeText(meta.size)} is above the ${sizeText(maxSourceBytes)} limit, no preview`);
+      throw new HttpError(422, "Image too large to preview");
+    }
 
     let pending = inFlight.get(name);
-    if (!pending) {
-      pending = render(sourceKey, size, passthrough, name).finally(() => inFlight.delete(name));
+    if (pending) {
+      log.debug(`${size} ${key}: same render already running, waiting for it`);
+    } else {
+      pending = render(sourceKey, size, passthrough, name, meta.size).finally(() => inFlight.delete(name));
       inFlight.set(name, pending);
     }
     return { body: await pending, contentType };
   };
 
-  async function render(sourceKey: string, size: ImageSize, passthrough: boolean, name: string): Promise<Buffer> {
+  async function render(
+    sourceKey: string,
+    size: ImageSize,
+    passthrough: boolean,
+    name: string,
+    sourceBytes: number,
+  ): Promise<Buffer> {
+    const queued = Date.now();
+    let started = queued;
+    let downloaded = queued;
     // Download and conversion both hold the whole image in memory, so both are limited.
     const body = await limit(async () => {
+      started = Date.now();
       const bytes = await b2.getBytes(sourceKey);
+      downloaded = Date.now();
       if (passthrough) return bytes;
       try {
         return await convert(bytes, MAX_SIDE[size]);
@@ -120,11 +146,18 @@ export function createImageRenderer({
         throw new HttpError(500, "Cannot convert this image", { cause: err });
       }
     });
+    const done = Date.now();
+    // Where the time went: waiting for one of the render slots, the B2 download, the conversion.
+    const line =
+      `${size} ${sourceKey}: rendered ${sizeText(sourceBytes)} source in ${done - queued} ms ` +
+      `(wait ${started - queued}, download ${downloaded - started}, convert ${done - downloaded})`;
+    if (done - queued >= SLOW_RENDER_MS) log.info(`Slow ${line}`);
+    else log.debug(line);
     try {
       await cache.put(name, body);
     } catch (err) {
       // The image is good; only the cache copy failed (full disk, locked file). Serve it anyway.
-      console.error(`Cache write failed for ${sourceKey}:`, err);
+      log.error(`Cache write failed for ${sourceKey}`, err);
     }
     return body;
   }

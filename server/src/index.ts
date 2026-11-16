@@ -1,12 +1,14 @@
+import { createWriteStream, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { createApp } from "./app.js";
 import { createB2 } from "./b2.js";
 import { createDiskCache } from "./cache.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, type Config } from "./config.js";
 import { createImageRenderer } from "./images.js";
 import { createLimiter } from "./limit.js";
+import { configureLog, log, sizeText } from "./log.js";
 import { createFileSource, createGitHubSource, createRegistry, SPLIT_TAGS_FILE, type RegistrySource } from "./registry.js";
 
 // How often a listing may ask the Registry source for changes. A local file costs one stat call;
@@ -20,13 +22,30 @@ const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "
 // Local development reads .env at the repo root; on a server the real environment is used.
 dotenv.config({ path: path.join(repoRoot, ".env"), quiet: true });
 
-let config;
+let config: Config;
 try {
   config = loadConfig(process.env, repoRoot);
 } catch (err) {
   console.error(`Cannot start: ${(err as Error).message}. See .env.example.`);
   process.exit(1);
 }
+
+// Every log line goes to the console and, unless LOG_FILE=off, is appended to the log file.
+const logFile = config.logFile;
+let fileStream: ReturnType<typeof createWriteStream> | null = null;
+if (logFile) {
+  mkdirSync(path.dirname(logFile), { recursive: true });
+  fileStream = createWriteStream(logFile, { flags: "a" });
+  fileStream.on("error", (err) => console.error(`Cannot write the log file ${logFile}:`, err.message));
+}
+configureLog({
+  level: config.logLevel,
+  write: (line, level) => {
+    if (level === "warn" || level === "error") console.error(line);
+    else console.log(line);
+    fileStream?.write(line + "\n");
+  },
+});
 
 const b2 = createB2(config);
 // split_tags.csv sits next to images.csv in both sources (GitHub paths always use "/").
@@ -49,6 +68,17 @@ const production = process.argv.includes("--production") || process.env.NODE_ENV
 const webDist = production ? path.join(repoRoot, "web", "dist") : undefined;
 
 const app = createApp({ config, b2, images, registry, webDist });
+/** Where the Registry comes from, for the startup summary (never the token). */
+function registryText(): string {
+  if (config.registry?.kind === "file") return `local file ${config.registry.path}`;
+  if (config.registry?.kind === "github") return `GitHub ${config.registry.repo}@${config.registry.ref}:${config.registry.path}`;
+  return "not configured (no metadata, no filters)";
+}
+
 app.listen(config.port, config.host, () => {
-  console.log(`B2 GUI server on http://${config.host}:${config.port} (bucket ${config.bucket}, prefix ${config.rawPrefix}/)`);
+  log.info(`B2 GUI server on http://${config.host}:${config.port} (${production ? "production" : "development"})`);
+  log.info(`B2: bucket ${config.bucket}, prefix ${config.rawPrefix}/, endpoint ${config.endpoint}`);
+  log.info(`Image cache: ${config.cacheDir}, limit ${sizeText(config.cacheMaxBytes)}`);
+  log.info(`Registry: ${registryText()}`);
+  log.info(`Log: level ${config.logLevel}, file ${logFile ?? "off"}`);
 });

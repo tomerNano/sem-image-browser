@@ -1,5 +1,5 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
-import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl, thumbUrl } from "../api";
+import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl, reportClientError, thumbUrl } from "../api";
 import { FIELDS, PREVIEW_GROUPS, type Field, type PreviewGroup } from "../lib/fields";
 import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
@@ -92,7 +92,10 @@ function FilePreview(props: { file: FileEntry }) {
             src={previewUrl(props.file.key, props.file.uploaded)}
             alt={props.file.name}
             onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
+            onError={() => {
+              setFailed(true);
+              reportClientError(`Preview failed to load: ${props.file.key}`);
+            }}
           />
           <Show when={!loaded()}>
             <PreparingBadge size={props.file.size} />

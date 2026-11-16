@@ -83,3 +83,14 @@ test("rejects a REGISTRY_GITHUB_REPO that is not owner/name, without printing th
   expect(() => loadConfig(env, "/app")).toThrow(/REGISTRY_GITHUB_REPO/);
   expect(() => loadConfig(env, "/app")).not.toThrow(/ghp_secret/);
 });
+
+test("LOG_LEVEL defaults to info and must be a known level", () => {
+  expect(loadConfig(full, "/app").logLevel).toBe("info");
+  expect(loadConfig({ ...full, LOG_LEVEL: "DEBUG" }, "/app").logLevel).toBe("debug");
+  expect(() => loadConfig({ ...full, LOG_LEVEL: "verbose" }, "/app")).toThrow(/LOG_LEVEL/);
+});
+
+test("LOG_FILE defaults to logs/server.log under the root; off means console only", () => {
+  expect(loadConfig(full, "/app").logFile).toBe(path.join("/app", "logs", "server.log"));
+  expect(loadConfig({ ...full, LOG_FILE: "off" }, "/app").logFile).toBeNull();
+});

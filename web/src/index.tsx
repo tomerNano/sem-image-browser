@@ -1,5 +1,5 @@
 import { render } from "solid-js/web";
-import { getRoot } from "./api";
+import { getRoot, reportClientError } from "./api";
 import App from "./App";
 import { startPrefix, syncHistory } from "./history";
 import { store } from "./store";
@@ -10,6 +10,15 @@ import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
 
 const mount = document.getElementById("root")!;
+
+// Script errors the page did not catch also go to the server log, with the page they happened on.
+window.addEventListener("error", (e) => {
+  reportClientError(`Script error on ${location.pathname}: ${e.message} (${e.filename}:${e.lineno})`);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const reason = e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason);
+  reportClientError(`Unhandled promise rejection on ${location.pathname}: ${reason}`);
+});
 
 // Ask the server where browsing starts, open the folder in the page address, then show the app.
 getRoot()

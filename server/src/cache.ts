@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { log, sizeText } from "./log.js";
 
 export type DiskCache = {
   get(name: string): Promise<Buffer | null>;
@@ -47,11 +48,18 @@ export function createDiskCache(dir: string, maxBytes = Infinity): DiskCache {
     totalBytes = files.reduce((sum, file) => sum + file.size, 0);
     if (totalBytes <= maxBytes) return;
     files.sort((a, b) => a.usedMs - b.usedMs);
+    const before = totalBytes;
+    let removed = 0;
     for (const file of files) {
       if (totalBytes <= maxBytes * TRIM_TO) break;
       await rm(path.join(dir, file.name), { force: true });
       totalBytes -= file.size;
+      removed++;
     }
+    log.info(
+      `Image cache over its ${sizeText(maxBytes)} limit: removed ${removed} least used files ` +
+        `(${sizeText(before - totalBytes)}), now ${sizeText(totalBytes)}`,
+    );
   }
 
   return {
