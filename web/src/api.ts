@@ -1,3 +1,4 @@
+import { memoByKey } from "./lib/memo";
 import type { ListResult, RegistryStatus } from "./types";
 
 /** Where browsing starts (the server's B2_RAW_PREFIX). */
@@ -7,8 +8,15 @@ export async function getRoot(): Promise<{ prefix: string; name: string }> {
   return res.json();
 }
 
+/**
+ * How long a folder listing is reused. The file area, the folder tree and the preview pane each
+ * ask for the same folder; without this, opening a split lists it in B2 two or three times.
+ * New files show after at most this long, or at once after a page reload.
+ */
+const LIST_TTL_MS = 30_000;
+
 /** One folder level from the backend. Throws an Error with the server's message on failure. */
-export async function listFolder(prefix: string): Promise<ListResult> {
+async function fetchListing(prefix: string): Promise<ListResult> {
   const res = await fetch(`/api/list?prefix=${encodeURIComponent(prefix)}`);
   if (!res.ok) {
     const body = await res.json().catch(() => null);
@@ -16,6 +24,9 @@ export async function listFolder(prefix: string): Promise<ListResult> {
   }
   return res.json();
 }
+
+/** One folder level, shared by every part of the page for LIST_TTL_MS. */
+export const listFolder = memoByKey(fetchListing, LIST_TTL_MS);
 
 /** Whether the server has Registry metadata (for the status bar warning). */
 export async function getRegistryStatus(): Promise<RegistryStatus> {
