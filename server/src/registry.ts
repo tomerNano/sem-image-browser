@@ -157,10 +157,13 @@ export const SPLIT_TAGS_FILE = "split_tags.csv";
  * Blank cells and repeated tags are dropped. Throws when the columns are missing.
  */
 export function parseSplitTags(text: string): Map<string, string[]> {
-  const records = parseCsv(text);
-  if (records.length > 0 && (!("split" in records[0]) || !("tag" in records[0]))) {
+  // Check the header line itself: a file cut down to a wrong header must fail, not load as "no tags".
+  const header = text.replace(/^﻿/, "").split(/\r?\n/, 1)[0].split(",");
+  const columns = header.map((h) => h.trim().replace(/^"(.*)"$/, "$1"));
+  if (!columns.includes("split") || !columns.includes("tag")) {
     throw new Error("split_tags.csv needs split and tag columns");
   }
+  const records = parseCsv(text);
   const bySplit = new Map<string, string[]>();
   for (const r of records) {
     const split = (r.split ?? "").trim();

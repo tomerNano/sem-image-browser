@@ -186,3 +186,14 @@ test("a missing tags source from the start means no tags, metadata still loads",
   expect(reg.tagsFor("b1")).toEqual([]);
   expect(reg.lookup(RAW)).not.toBeNull();
 });
+
+test("a split_tags.csv with a wrong header and no rows keeps the last good tags", async () => {
+  expect(() => parseSplitTags("name,label\n")).toThrow("split_tags.csv needs split and tag columns");
+  const tags = memorySource(TAGS);
+  const reg = createRegistry(memorySource(csv()).source, 0, tags.source);
+  await reg.refresh();
+  tags.state.text = "name,label\n";
+  tags.state.version = 2;
+  await reg.refresh();
+  expect(reg.tagsFor("b1")).toEqual(["10-3", "ctrl"]);
+});
