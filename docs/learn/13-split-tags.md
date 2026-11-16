@@ -34,6 +34,10 @@ batch dates, so it lives next to them: `tagFilter` in `store.ts`, applied in `vi
 root and in the tree (`hasTag`). That is why it sits in the panel's "Batch" section and only shows at
 the top level, but stays set while you browse inside a split.
 
+Several tags can be chosen (one toggle per tag, `toggleTag` in the store). A split shows when it has
+**any** chosen tag: a split usually has one tag, so "all chosen tags" would match nothing. Each
+chosen tag is its own chip and counts once in the filter badge.
+
 ## One neutral pill
 
 Every tag value looks the same (`.tag-pill`, colors from `--pill-bg` and `--pill-border`). A color

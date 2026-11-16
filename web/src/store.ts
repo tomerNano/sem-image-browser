@@ -68,8 +68,13 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
   const [search, setSearch] = createSignal("");
   const [dateFrom, setDateFrom] = createSignal("");
   const [dateTo, setDateTo] = createSignal("");
-  // Split tag chosen in the filter panel ("" = any). Like the dates, it hides batch folders only.
-  const [tagFilter, setTagFilter] = createSignal("");
+  // Split tags chosen in the filter panel (none = any). Like the dates, they hide batch folders only.
+  const [tagFilter, setTagFilter] = createSignal<string[]>([]);
+
+  /** Choose a tag, or take it out when it is already chosen. */
+  function toggleTag(tag: string) {
+    setTagFilter((tags) => (tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]));
+  }
   const [sortColumn, setSortColumn] = createSignal<FieldId>("name");
   const [sortDir, setSortDir] = createSignal<SortDir>("asc");
   // Folders keep the server's order (batches newest first) until the user clicks a header.
@@ -124,14 +129,14 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
     setSortDir(dir);
   }
 
-  /** How many filters are set (each date bound, the tag, each Field filter), for the badge on the filter button. */
+  /** How many filters are set (each date bound, each chosen tag, each Field filter), for the badge on the filter button. */
   const activeFilterCount = () =>
-    [dateFrom(), dateTo(), tagFilter()].filter((v) => v !== "").length + fieldFilterCount(filters());
+    [dateFrom(), dateTo()].filter((v) => v !== "").length + tagFilter().length + fieldFilterCount(filters());
 
   function clearAllFilters() {
     setDateFrom("");
     setDateTo("");
-    setTagFilter("");
+    setTagFilter([]);
     setFilters(NO_FILTERS);
   }
 
@@ -391,7 +396,7 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
     dateTo,
     setDateTo,
     tagFilter,
-    setTagFilter,
+    toggleTag,
     listedFolders,
     sortColumn,
     sortDir,

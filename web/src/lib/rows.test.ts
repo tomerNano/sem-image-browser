@@ -20,15 +20,17 @@ test("size and uploaded have no folder value, so folders keep name order", () =>
   expect(sortFolders(batches, "size", "desc").map((x) => x.name)).toEqual(["2026-10-06_b", "2026-10-19_a", "old"]);
 });
 
-test("hasTag: empty choice passes everything; otherwise any tag matches", () => {
-  expect(hasTag([], "")).toBe(true);
-  expect(hasTag(["10-3", "ctrl"], "ctrl")).toBe(true);
-  expect(hasTag([], "10-3")).toBe(false);
+test("hasTag: no chosen tag passes everything; otherwise the split needs any one chosen tag", () => {
+  expect(hasTag([], [])).toBe(true);
+  expect(hasTag(["10-3", "ctrl"], ["ctrl"])).toBe(true);
+  expect(hasTag(["10-3"], ["10-4", "10-3"])).toBe(true);
+  expect(hasTag(["10-5"], ["10-4", "10-3"])).toBe(false);
+  expect(hasTag([], ["10-3"])).toBe(false);
 });
 
 test("tagChoices: distinct tags in natural order, chosen kept when absent", () => {
-  expect(tagChoices([f("a", null, ["10-5"]), f("b", null, ["10-3", "10-5"]), f("c", null)], "")).toEqual(["10-3", "10-5"]);
-  expect(tagChoices([f("a", null, ["10-3"])], "10-4")).toEqual(["10-4", "10-3"]);
+  expect(tagChoices([f("a", null, ["10-5"]), f("b", null, ["10-3", "10-5"]), f("c", null)], [])).toEqual(["10-3", "10-5"]);
+  expect(tagChoices([f("a", null, ["10-3"])], ["10-4", "10-3"])).toEqual(["10-3", "10-4"]);
 });
 
 test("sortFolders by tag: first tag order, untagged last", () => {

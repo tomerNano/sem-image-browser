@@ -9,7 +9,7 @@ function chips(): Chip[] {
   const out: Chip[] = [];
   if (store.dateFrom()) out.push({ label: "From", value: store.dateFrom(), remove: () => store.setDateFrom("") });
   if (store.dateTo()) out.push({ label: "To", value: store.dateTo(), remove: () => store.setDateTo("") });
-  if (store.tagFilter()) out.push({ label: "Tag", value: store.tagFilter(), remove: () => store.setTagFilter("") });
+  for (const tag of store.tagFilter()) out.push({ label: "Tag", value: tag, remove: () => store.toggleTag(tag) });
   const filters = store.filters();
   for (const f of FIELDS) {
     const value = filterSummary(f, filters[f.id]);

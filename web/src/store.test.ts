@@ -248,7 +248,7 @@ test("the page follows the focus: selecting or viewing an item on another page o
 
 test("the tag filter hides other splits at the root, counts as a filter and stays set inside a split", async () => {
   const s = await storeAt("yeast/");
-  s.setTagFilter("10-3");
+  s.toggleTag("10-3");
   expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha"]);
   expect(s.activeFilterCount()).toBe(1);
   s.navigate(raw);
@@ -277,4 +277,16 @@ test("at the top level the filter choices come from every split's images", async
   s.navigate(raw);
   await loaded();
   expect(s.filterFiles().map((f) => f.name)).toEqual(["cell_1.tiff", "cell_2.tiff", "cell_3.tiff"]);
+});
+
+test("several chosen tags show every split that has any of them; each tag counts as one filter", async () => {
+  const s = await storeAt("yeast/");
+  s.toggleTag("10-3");
+  expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha"]);
+  s.toggleTag("10-5");
+  expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha", "beta"]);
+  expect(s.activeFilterCount()).toBe(2);
+  s.toggleTag("10-3");
+  expect(s.tagFilter()).toEqual(["10-5"]);
+  expect(s.visibleFolders().map((f) => f.name)).toEqual(["beta"]);
 });

@@ -23,19 +23,21 @@ export function matchesSearch(name: string, q: string): boolean {
   return name.toLowerCase().includes(q.trim().toLowerCase());
 }
 
-/** Tag filter for split folders: "" passes everything; otherwise any of the split's tags must match. */
-export function hasTag(tags: string[], chosen: string): boolean {
-  return chosen === "" || tags.includes(chosen);
+/**
+ * Tag filter for split folders: no chosen tag passes everything; otherwise the split needs at
+ * least one of the chosen tags (a split usually has one tag, so "all of them" would match nothing).
+ */
+export function hasTag(tags: string[], chosen: string[]): boolean {
+  return chosen.length === 0 || chosen.some((tag) => tags.includes(tag));
 }
 
-/** Tag filter options: the distinct tags of `folders` in natural order; the chosen tag is always kept. */
-export function tagChoices(folders: FolderEntry[], chosen: string): string[] {
-  const found = new Set<string>();
+/** Tag filter options: the distinct tags of `folders` plus the chosen ones, in natural order. */
+export function tagChoices(folders: FolderEntry[], chosen: string[]): string[] {
+  const found = new Set<string>(chosen);
   for (const folder of folders) {
     for (const tag of folder.tags) found.add(tag);
   }
-  const values = [...found].sort(compareNames);
-  return chosen && !values.includes(chosen) ? [chosen, ...values] : values;
+  return [...found].sort(compareNames);
 }
 
 /**
