@@ -55,3 +55,8 @@ second about 6 ms (from disk).
 
 Each answer also says `Cache-Control: private, max-age=86400`, so the browser keeps images for a day
 and does not ask again while you scroll back and forth.
+
+To find the cache file name, the server needs the ETag, and that costs a `HEAD` call to B2. The
+renderer remembers each `HEAD` answer (also "missing") for `HEAD_TTL_MS` (5 minutes), so an image
+already in the disk cache is served without talking to B2 at all. Before this, a folder of 200
+images cost 200 to 400 B2 round trips on every visit.

@@ -17,7 +17,26 @@ const MAX_SIDE: Record<ImageSize, number> = { thumb: 256, preview: 1600 };
  */
 export const MAX_SOURCE_BYTES = 512 * 1024 * 1024;
 
-type Deps = { b2: B2; cache: DiskCache; limit: Limiter; convert?: typeof toJpeg; maxSourceBytes?: number };
+/**
+ * How long a B2 HEAD answer (ETag and size, or "missing") is reused. Without it, every thumbnail
+ * request asks B2 before it can use the disk cache: a folder of 200 images is 200 to 400 round
+ * trips. A file replaced in B2 shows its old image for at most this long.
+ */
+export const HEAD_TTL_MS = 5 * 60_000;
+
+/** Most HEAD answers kept in memory; above it, all are dropped and asked again. */
+const MAX_HEAD_ENTRIES = 50_000;
+
+type Head = { etag: string; size: number } | null;
+
+type Deps = {
+  b2: B2;
+  cache: DiskCache;
+  limit: Limiter;
+  convert?: typeof toJpeg;
+  maxSourceBytes?: number;
+  headTtlMs?: number;
+};
 
 /**
  * Thumbnail or preview of one TIFF. Uses the pipeline's ready-made PNGs in raw/.cache/ when
@@ -30,27 +49,48 @@ export function createImageRenderer({
   limit,
   convert = toJpeg,
   maxSourceBytes = MAX_SOURCE_BYTES,
+  headTtlMs = HEAD_TTL_MS,
 }: Deps): ImageRenderer {
   // Renders in progress, by cache name: a second request for the same image waits for the first
   // (a double-click asks for the same preview from the preview pane and the viewer at once).
   const inFlight = new Map<string, Promise<Buffer>>();
+  // Recent HEAD answers by key, including "missing" (most raw TIFFs have no .cache PNG).
+  const heads = new Map<string, { head: Head; expires: number }>();
+
+  /**
+   * b2.head(), answered from memory when asked less than headTtlMs ago.
+   *
+   * Args:
+   *   key: Object key in the bucket.
+   *
+   * Returns:
+   *   ETag and size, or null when the object does not exist.
+   */
+  async function head(key: string): Promise<Head> {
+    const remembered = heads.get(key);
+    if (remembered && remembered.expires > Date.now()) return remembered.head;
+    const answer = await b2.head(key);
+    if (heads.size >= MAX_HEAD_ENTRIES) heads.clear();
+    heads.set(key, { head: answer, expires: Date.now() + headTtlMs });
+    return answer;
+  }
 
   return async (key, size) => {
     let sourceKey = key;
-    let meta: { etag: string; size: number } | null = null;
+    let meta: Head = null;
     let passthrough = false;
 
     const sources = cacheSources(key);
     if (sources) {
       const candidate = size === "thumb" ? sources.thumb : sources.png;
-      meta = await b2.head(candidate);
+      meta = await head(candidate);
       if (meta) {
         sourceKey = candidate;
         passthrough = size === "thumb";
       }
     }
     if (!meta) {
-      meta = await b2.head(key);
+      meta = await head(key);
       if (!meta) throw new HttpError(404, "Not found");
     }
 

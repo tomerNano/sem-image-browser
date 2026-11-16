@@ -58,6 +58,44 @@ test("variant files never look for .cache", async () => {
   expect(r.body.toString()).toBe("jpeg:256");
 });
 
+/** fakeB2 that counts HEAD calls, to check how often the renderer asks B2. */
+function countingB2(objects: Record<string, Buffer>) {
+  const b2 = fakeB2(objects);
+  const counter = { heads: 0 };
+  const counted = {
+    ...b2,
+    head: (key: string) => {
+      counter.heads++;
+      return b2.head(key);
+    },
+  };
+  return { b2: counted, counter };
+}
+
+test("a cached image is served again without asking B2", async () => {
+  const { b2, counter } = countingB2({ [raw]: tiff });
+  const r = createImageRenderer({ b2, cache: createDiskCache(cacheDir), limit: createLimiter(4), convert: async () => png });
+  await r(raw, "thumb");
+  const headsAfterFirst = counter.heads;
+  await r(raw, "thumb");
+  expect(counter.heads).toBe(headsAfterFirst);
+});
+
+test("B2 is asked again once the remembered answer is too old", async () => {
+  const { b2, counter } = countingB2({ [raw]: tiff });
+  const r = createImageRenderer({
+    b2,
+    cache: createDiskCache(cacheDir),
+    limit: createLimiter(4),
+    convert: async () => png,
+    headTtlMs: 0,
+  });
+  await r(raw, "thumb");
+  const headsAfterFirst = counter.heads;
+  await r(raw, "thumb");
+  expect(counter.heads).toBe(headsAfterFirst * 2);
+});
+
 test("missing TIFF is 404", async () => {
   await expect(render({})(raw, "thumb")).rejects.toMatchObject({ status: 404 });
 });
