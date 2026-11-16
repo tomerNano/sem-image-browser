@@ -16,7 +16,7 @@ const columns = () =>
       (store.visibleFiles().length > 0 || f.folder !== undefined),
   );
 
-const cellClass = (f: Field) => ({ text: "", mono: "mono", num: "num mono" })[f.column!.cell];
+const cellClass = (f: Field) => ({ text: "", mono: "mono", num: "num mono", tags: "" })[f.column!.cell];
 
 /**
  * Checkbox in the first column: a click adds or removes the item, like Ctrl+click (Shift adds a

@@ -1,5 +1,6 @@
 // Copy of the server's API types (server/src/listing.ts, server/src/registry.ts). Keep both in sync.
-export type FolderEntry = { name: string; prefix: string; date: string | null };
+/** `tags`: the split's Registry tags, only for batch folders directly under the root; else []. */
+export type FolderEntry = { name: string; prefix: string; date: string | null; tags: string[] };
 
 /** One row of the Registry's images.csv. Numbers are null when the Registry has no value. */
 export type ImageMeta = {
@@ -32,6 +33,8 @@ export type FileEntry = {
   uploaded: string;
   date: string | null;
   meta: ImageMeta | null;
+  /** Tags of the split (batch) this file belongs to. */
+  tags: string[];
 };
 export type ListResult = { folders: FolderEntry[]; files: FileEntry[] };
 

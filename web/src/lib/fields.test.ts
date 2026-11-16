@@ -43,6 +43,7 @@ const file = (name: string, m: ImageMeta | null, extra: Partial<FileEntry> = {})
   uploaded: "2026-10-19T09:00:00Z",
   date: "2026-10-12",
   meta: m,
+  tags: ["10-3", "ctrl"],
   ...extra,
 });
 
@@ -54,6 +55,7 @@ const LOCAL_UPLOAD = `${up.getFullYear()}-${pad(up.getMonth() + 1)}-${pad(up.get
 describe("each Field formats a sample file and a file without a Registry row", () => {
   const expected: Record<FieldId, [string, string]> = {
     name: ["cell_1.tiff", "cell_1.tiff"],
+    tag: ["10-3, ctrl", "10-3, ctrl"],
     date: ["2026-10-12", "2026-10-12"],
     size: ["2.0 KB", "2.0 KB"],
     acquired: ["2026-10-12 11:09:45", MISSING],

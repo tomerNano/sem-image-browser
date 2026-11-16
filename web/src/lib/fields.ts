@@ -6,6 +6,7 @@ import { compareNames, formatSize } from "./rows";
 
 export type FieldId =
   | "name"
+  | "tag"
   | "date"
   | "size"
   | "acquired"
@@ -40,8 +41,8 @@ export type Field = {
   value(file: FileEntry): string | number | null;
   /** The one display text: Details cell, preview row and choice-filter option. */
   format(file: FileEntry): string;
-  /** A Details column and a sort menu entry. `cell` is the column's text style. */
-  column?: { cell: "text" | "mono" | "num" };
+  /** A Details column and a sort menu entry. `cell` is the column's text style; "tags" shows pills. */
+  column?: { cell: "text" | "mono" | "num" | "tags" };
   /** What a folder row shows in this column; folders show nothing for most Fields. */
   folder?(folder: FolderEntry): string;
   /** Preview pane group. "file" always shows; the Registry groups only for files with a Registry row. */
@@ -112,6 +113,16 @@ export const FIELDS: Field[] = [
     format: (f) => f.name,
     column: { cell: "text" },
     folder: (d) => d.name,
+  },
+  {
+    // The split's tags from the Registry (split_tags.csv), on folders and files alike.
+    id: "tag",
+    label: "Tag",
+    value: (f) => f.tags[0] ?? null,
+    format: (f) => f.tags.join(", ") || MISSING,
+    column: { cell: "tags" },
+    folder: (d) => d.tags.join(", ") || MISSING,
+    preview: "dataset",
   },
   {
     id: "date",

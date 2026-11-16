@@ -12,7 +12,7 @@ import {
   type FilterValue,
   type SortDir,
 } from "./lib/fields";
-import { inDateRange, matchesSearch, sortFolders } from "./lib/rows";
+import { hasTag, inDateRange, matchesSearch, sortFolders } from "./lib/rows";
 import type { FileEntry, FolderEntry, ListResult, RegistryStatus } from "./types";
 
 /** Where browsing starts, told by the server (GET /api/root), e.g. { prefix: "SEM-DATA/yeast/", name: "yeast" }. */
@@ -64,6 +64,8 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
   const [search, setSearch] = createSignal("");
   const [dateFrom, setDateFrom] = createSignal("");
   const [dateTo, setDateTo] = createSignal("");
+  // Split tag chosen in the filter panel ("" = any). Like the dates, it hides batch folders only.
+  const [tagFilter, setTagFilter] = createSignal("");
   const [sortColumn, setSortColumn] = createSignal<FieldId>("name");
   const [sortDir, setSortDir] = createSignal<SortDir>("asc");
   // Folders keep the server's order (batches newest first) until the user clicks a header.
@@ -118,20 +120,26 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
     setSortDir(dir);
   }
 
-  /** How many filters are set (each date bound, each Field filter), for the badge on the filter button. */
-  const activeFilterCount = () => [dateFrom(), dateTo()].filter((v) => v !== "").length + fieldFilterCount(filters());
+  /** How many filters are set (each date bound, the tag, each Field filter), for the badge on the filter button. */
+  const activeFilterCount = () =>
+    [dateFrom(), dateTo(), tagFilter()].filter((v) => v !== "").length + fieldFilterCount(filters());
 
   function clearAllFilters() {
     setDateFrom("");
     setDateTo("");
+    setTagFilter("");
     setFilters(NO_FILTERS);
   }
 
+  /** Every folder of the current listing, before search and filters (the tag filter options read it). */
+  const listedFolders = createMemo<FolderEntry[]>(() => (listing.error ? [] : (listing()?.folders ?? [])));
+
   const visibleFolders = createMemo<FolderEntry[]>(() => {
-    const folders = listing.error ? [] : (listing()?.folders ?? []);
     const atRoot = currentPrefix() === root().prefix;
-    const shown = folders.filter(
-      (f) => matchesSearch(f.name, search()) && (!atRoot || inDateRange(f.date, dateFrom(), dateTo())),
+    const shown = listedFolders().filter(
+      (f) =>
+        matchesSearch(f.name, search()) &&
+        (!atRoot || (inDateRange(f.date, dateFrom(), dateTo()) && hasTag(f.tags, tagFilter()))),
     );
     return userSorted() ? sortFolders(shown, sortColumn(), sortDir()) : shown;
   });
@@ -329,6 +337,9 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
     setDateFrom,
     dateTo,
     setDateTo,
+    tagFilter,
+    setTagFilter,
+    listedFolders,
     sortColumn,
     sortDir,
     sortBy,

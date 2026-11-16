@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "vitest";
 import { createStore } from "./store";
 import type { FileEntry, FolderEntry, ImageMeta, ListResult } from "./types";
 
-const folder = (name: string): FolderEntry => ({ name, prefix: `yeast/${name}/`, date: null });
+const folder = (name: string, tags: string[] = []): FolderEntry => ({ name, prefix: `yeast/${name}/`, date: null, tags });
 const file = (name: string, gold: ImageMeta["gold"]): FileEntry => ({
   name,
   key: `yeast/b/raw/${name}`,
@@ -11,10 +11,11 @@ const file = (name: string, gold: ImageMeta["gold"]): FileEntry => ({
   uploaded: "2026-10-19T09:00:00Z",
   date: null,
   meta: { gold } as ImageMeta,
+  tags: [],
 });
 
 const LISTINGS: Record<string, ListResult> = {
-  "yeast/": { folders: [folder("alpha"), folder("beta")], files: [] },
+  "yeast/": { folders: [folder("alpha", ["10-3"]), folder("beta", ["10-5"])], files: [] },
   "yeast/b/raw/": {
     folders: [],
     files: [file("cell_1.tiff", "true"), file("cell_2.tiff", "false"), file("cell_3.tiff", "true")],
@@ -232,4 +233,19 @@ test("the page follows the focus: selecting or viewing an item on another page o
   expect(s.page()).toBe(2);
   s.selectRange(big + "cell_1.tiff");
   expect(s.page()).toBe(0);
+});
+
+test("the tag filter hides other splits at the root, counts as a filter and stays set inside a split", async () => {
+  const s = await storeAt("yeast/");
+  s.setTagFilter("10-3");
+  expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha"]);
+  expect(s.activeFilterCount()).toBe(1);
+  s.navigate(raw);
+  await loaded();
+  expect(s.visibleFiles()).toHaveLength(3);
+  s.navigate("yeast/");
+  await loaded();
+  expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha"]);
+  s.clearAllFilters();
+  expect(s.visibleFolders()).toHaveLength(2);
 });

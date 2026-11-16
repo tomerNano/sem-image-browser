@@ -23,9 +23,24 @@ export function matchesSearch(name: string, q: string): boolean {
   return name.toLowerCase().includes(q.trim().toLowerCase());
 }
 
+/** Tag filter for split folders: "" passes everything; otherwise any of the split's tags must match. */
+export function hasTag(tags: string[], chosen: string): boolean {
+  return chosen === "" || tags.includes(chosen);
+}
+
+/** Tag filter options: the distinct tags of `folders` in natural order; the chosen tag is always kept. */
+export function tagChoices(folders: FolderEntry[], chosen: string): string[] {
+  const found = new Set<string>();
+  for (const folder of folders) {
+    for (const tag of folder.tags) found.add(tag);
+  }
+  const values = [...found].sort(compareNames);
+  return chosen && !values.includes(chosen) ? [chosen, ...values] : values;
+}
+
 /**
- * Folders follow the same header clicks as files. Name and Date apply; folders have no other
- * Field, so other columns keep them in name order. Undated folders stay last either way.
+ * Folders follow the same header clicks as files. Name, Date and Tag apply; folders have no other
+ * Field, so other columns keep them in name order. Undated and untagged folders stay last either way.
  */
 export function sortFolders(folders: FolderEntry[], column: FieldId, dir: SortDir): FolderEntry[] {
   const sign = dir === "asc" ? 1 : -1;
@@ -35,6 +50,14 @@ export function sortFolders(folders: FolderEntry[], column: FieldId, dir: SortDi
       if (!a.date && b.date) return 1;
       const byDate = sign * (a.date ?? "").localeCompare(b.date ?? "");
       return byDate || compareNames(a.name, b.name);
+    }
+    if (column === "tag") {
+      const x = a.tags[0];
+      const y = b.tags[0];
+      if (x && !y) return -1;
+      if (!x && y) return 1;
+      const byTag = x && y ? sign * compareNames(x, y) : 0;
+      return byTag || compareNames(a.name, b.name);
     }
     if (column === "name") return sign * compareNames(a.name, b.name);
     return compareNames(a.name, b.name);
