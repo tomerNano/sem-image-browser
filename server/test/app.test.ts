@@ -208,19 +208,19 @@ test("listing adds split tags to root folders", async () => {
   expect(res.body.folders[0].tags).toEqual(["10-3"]);
 });
 
-test("split-images gives the Registry images by split, and 304 when unchanged", async () => {
+test("split-groups gives the image groups by split, and 304 when unchanged", async () => {
   const csv = `image_id,b2_key,current_split,width_px\ni1,yeast/s1/raw/cell_1.tiff,s1,1920\n`;
   const registry = createRegistry({ name: "memory", load: async () => ({ version: "1", text: csv }) }, 0);
   const app = createApp({ config, b2: fakeB2({}), registry });
-  const res = await request(app).get("/api/split-images");
+  const res = await request(app).get("/api/split-groups");
   expect(res.status).toBe(200);
   expect(res.headers["cache-control"]).toBe("private, no-cache");
-  expect(res.body.splits.s1[0]).toMatchObject({ key: "yeast/s1/raw/cell_1.tiff", meta: { widthPx: 1920 } });
-  const again = await request(app).get("/api/split-images").set("If-None-Match", res.headers.etag);
+  expect(res.body.splits.s1[0]).toMatchObject({ count: 1, meta: { widthPx: 1920 } });
+  const again = await request(app).get("/api/split-groups").set("If-None-Match", res.headers.etag);
   expect(again.status).toBe(304);
 });
 
-test("split-images without a Registry is empty", async () => {
-  const res = await request(createApp({ config, b2: fakeB2({}) })).get("/api/split-images");
+test("split-groups without a Registry is empty", async () => {
+  const res = await request(createApp({ config, b2: fakeB2({}) })).get("/api/split-groups");
   expect(res.body).toEqual({ splits: {} });
 });

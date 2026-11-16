@@ -13,7 +13,7 @@ import {
   type SortDir,
 } from "./lib/fields";
 import { hasTag, inDateRange, matchesSearch, sortFolders } from "./lib/rows";
-import type { FileEntry, FolderEntry, ListResult, RegistryStatus, SplitImages } from "./types";
+import type { FileEntry, FolderEntry, ListResult, RegistryStatus, SplitGroups } from "./types";
 
 /** Where browsing starts, told by the server (GET /api/root), e.g. { prefix: "SEM-DATA/yeast/", name: "yeast" }. */
 export type Root = { prefix: string; name: string };
@@ -34,7 +34,7 @@ export type ViewerState = {
 export type StoreApi = {
   listFolder(prefix: string): Promise<ListResult>;
   getRegistryStatus(): Promise<RegistryStatus>;
-  getSplitImages(): Promise<SplitImages>;
+  getSplitGroups(): Promise<SplitGroups>;
 };
 
 /** How many of a split's Registry images pass the Field filters. */
@@ -145,23 +145,21 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
 
   const atRoot = () => currentPrefix() !== "" && currentPrefix() === root().prefix;
 
-  // Registry images of every split, loaded once per page: the Field filters hide splits with no
-  // matching image (top-level list and tree). A failed load leaves the splits unfiltered.
-  const [splitImages] = createResource(() => root().prefix || false, () => api.getSplitImages());
+  // Registry image groups of every split, loaded once per page: the Field filters hide splits with
+  // no matching image (top-level list and tree). A failed load leaves the splits unfiltered.
+  const [splitGroups] = createResource(() => root().prefix || false, () => api.getSplitGroups());
 
-  /** Split images as file entries, so the Field filters and their choices treat them like files. */
-  const splitFiles = createMemo<Record<string, FileEntry[]>>(() => {
-    const data = splitImages.error ? undefined : splitImages();
-    const bySplit: Record<string, FileEntry[]> = {};
-    for (const [split, images] of Object.entries(data ?? {})) {
-      bySplit[split] = images.map(({ key, meta }) => ({
-        name: key.slice(key.lastIndexOf("/") + 1),
-        key,
-        size: 0,
-        uploaded: "",
-        date: null,
-        meta,
-        tags: [],
+  /**
+   * Each image group as a file entry (plus its image count), so the Field filters and their
+   * choices treat it like a file. Groups have no key or name: only their filter values count.
+   */
+  const splitFiles = createMemo<Record<string, { file: FileEntry; count: number }[]>>(() => {
+    const data = splitGroups.error ? undefined : splitGroups();
+    const bySplit: Record<string, { file: FileEntry; count: number }[]> = {};
+    for (const [split, groups] of Object.entries(data ?? {})) {
+      bySplit[split] = groups.map(({ meta, count }) => ({
+        file: { name: "", key: "", size: 0, uploaded: "", date: null, meta, tags: [] },
+        count,
       }));
     }
     return bySplit;
@@ -169,12 +167,17 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
 
   /**
    * How many of the split's images pass the Field filters; null when no Field filter is set or
-   * the split images have not loaded (then the Field filters hide no split).
+   * the split groups have not loaded (then the Field filters hide no split).
    */
   function splitMatch(split: string): SplitMatch | null {
-    if (fieldFilterCount(filters()) === 0 || splitImages.error || !splitImages()) return null;
-    const images = splitFiles()[split] ?? [];
-    return { matched: images.filter((f) => matchesFilters(f, filters())).length, total: images.length };
+    if (fieldFilterCount(filters()) === 0 || splitGroups.error || !splitGroups()) return null;
+    let matched = 0;
+    let total = 0;
+    for (const group of splitFiles()[split] ?? []) {
+      total += group.count;
+      if (matchesFilters(group.file, filters())) matched += group.count;
+    }
+    return { matched, total };
   }
 
   /** Whether a split (top-level folder) passes the batch date, the tag and the Field filters. */
@@ -195,7 +198,9 @@ export function createStore(api: StoreApi, { pageSize = PAGE_SIZE }: StoreOption
   const folderFiles = createMemo<FileEntry[]>(() => (listing.error ? [] : (listing()?.files ?? [])));
 
   /** Where the Field filter choices come from: every split's images at the top level, else this folder's files. */
-  const filterFiles = createMemo<FileEntry[]>(() => (atRoot() ? Object.values(splitFiles()).flat() : folderFiles()));
+  const filterFiles = createMemo<FileEntry[]>(() =>
+    atRoot() ? Object.values(splitFiles()).flatMap((groups) => groups.map((g) => g.file)) : folderFiles(),
+  );
 
   const visibleFiles = createMemo<FileEntry[]>(() => {
     const shown = folderFiles().filter((f) => matchesSearch(f.name, search()) && matchesFilters(f, filters()));

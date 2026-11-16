@@ -12,21 +12,30 @@ Changed: `registry.ts`, `app.ts` (server); `types.ts`, `api.ts`, `store.ts`, `Fi
 ## No B2 calls: the Registry already knows
 
 ```
-images.csv  -->  server (split -> [{ key, meta }])  -->  GET /api/split-images  -->  browser
+images.csv  -->  server (split -> [{ meta, count }])  -->  GET /api/split-groups  -->  browser
 ```
 
 Every Registry row has `current_split`. When the server re-reads images.csv it also groups the
-rows by split (`imagesBySplit()`). The browser asks for this once per page load. About 3 MB for
-5,561 images: it is sent with `Cache-Control: private, no-cache`, so the browser keeps a copy and
-asks again only with its ETag; an unchanged answer is a 304 with no body.
+rows by split, then by their **filter values** (`splitGroups()` in `registry.ts`). Images that
+share resolution, field width, instrument, detector, voltage, gold, source and variant become one
+group with a count; values nobody filters by (image id, time) are left out. The browser asks for
+this once per page load and gets it with `Cache-Control: private, no-cache`: it keeps a copy and
+asks again only with its ETag, and an unchanged answer is a 304 with no body.
 
-## Split images look like files
+Why groups and not one entry per image: the answer grows with how many different value sets
+exist, not with the number of images. 5,561 images give 378 groups, 150 KB instead of 3 MB.
+At 100,000 images a list of every image would be about 55 MB per page load.
+
+If a new Field gets a `filter` in `web/src/lib/fields.ts`, add its value to `filterMeta` in
+`registry.ts`, or the top-level filter cannot see it.
+
+## Groups look like files
 
 `matchesFilters` and `choices` (in `lib/fields.ts`) work on `FileEntry`. The store wraps each
-split image as a `FileEntry` (name from the key, size 0, the Registry `meta`), so the same
+group as a `FileEntry` (empty name and key, the group's `meta`) next to its count, so the same
 filter code decides both "does this file pass?" and "does this split have a passing image?".
-`splitMatch(name)` counts the passing images; `passesBatchFilters(folder)` adds it to the date
-and tag checks, and both the folder list and the tree use it.
+`splitMatch(name)` adds up the counts of the passing groups; `passesBatchFilters(folder)` adds it
+to the date and tag checks, and both the folder list and the tree use it.
 
 At the top level the filter dropdowns list the values of every split's images (`filterFiles()`),
 so the choices are there before any folder is opened.

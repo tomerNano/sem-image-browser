@@ -176,16 +176,70 @@ export function parseSplitTags(text: string): Map<string, string[]> {
   return bySplit;
 }
 
-/** One Registry image of a split: its raw B2 key and its metadata. */
-export type SplitImage = { key: string; meta: ImageMeta };
+/** Images of one split that share every filter value (`meta`), and how many there are. */
+export type SplitGroup = { meta: ImageMeta; count: number };
+
+/**
+ * Only the values the browser filters by, every other field blank. Keep in sync with the Fields
+ * that have a `filter` in web/src/lib/fields.ts (Resolution, Field width, Instrument, Detector,
+ * Voltage, Gold, Source, Variant).
+ *
+ * Args:
+ *   m: Full metadata of one image.
+ *
+ * Returns:
+ *   Metadata with the filter values and the split kept, the rest empty.
+ */
+function filterMeta(m: ImageMeta): ImageMeta {
+  return {
+    ...toImageMeta({}),
+    split: m.split,
+    widthPx: m.widthPx,
+    heightPx: m.heightPx,
+    fieldWidthUm: m.fieldWidthUm,
+    instrument: m.instrument,
+    detector: m.detector,
+    voltageKv: m.voltageKv,
+    gold: m.gold,
+    source: m.source,
+    variant: m.variant,
+  };
+}
+
+/**
+ * Registry images grouped by split, then by their filter values. The size grows with how many
+ * different value sets exist (5,561 images give 378 groups), not with how many images.
+ *
+ * Args:
+ *   images: Metadata of every Registry image.
+ *
+ * Returns:
+ *   Groups by split name, in the order each value set first appears.
+ */
+function groupBySplit(images: ImageMeta[]): Record<string, SplitGroup[]> {
+  const bySplit = new Map<string, Map<string, SplitGroup>>();
+  for (const image of images) {
+    if (!image.split) continue;
+    const meta = filterMeta(image);
+    const groups = bySplit.get(image.split) ?? new Map<string, SplitGroup>();
+    const id = JSON.stringify(meta);
+    const group = groups.get(id);
+    if (group) group.count++;
+    else groups.set(id, { meta, count: 1 });
+    bySplit.set(image.split, groups);
+  }
+  const out: Record<string, SplitGroup[]> = {};
+  for (const [split, groups] of bySplit) out[split] = [...groups.values()];
+  return out;
+}
 
 export type Registry = {
   /** Metadata for one B2 key, or null when the Registry has no row for it. */
   lookup(key: string): ImageMeta | null;
   /** Tags of one split (a batch folder name), from split_tags.csv; [] when it has none. */
   tagsFor(split: string): string[];
-  /** Every Registry image with a split, grouped by split (every variant), in file order. */
-  imagesBySplit(): Record<string, SplitImage[]>;
+  /** Registry images with a split, counted by split and filter values (every variant). */
+  splitGroups(): Record<string, SplitGroup[]>;
   /** Re-reads the source if it changed. Never throws: a failure keeps the last good data. */
   refresh(): Promise<void>;
   status(): RegistryStatus;
@@ -204,7 +258,7 @@ export function createRegistry(
   tagsSource: RegistrySource | null = null,
 ): Registry {
   let byKey = new Map<string, ImageMeta>();
-  let bySplit: Record<string, SplitImage[]> = {};
+  let groups: Record<string, SplitGroup[]> = {};
   let rows = 0;
   let version: string | null = null;
   let error: string | null = source ? null : "Registry not configured";
@@ -237,15 +291,15 @@ export function createRegistry(
       if (result !== "unchanged") {
         const records = parseCsv(result.text);
         const next = new Map<string, ImageMeta>();
-        const nextBySplit: Record<string, SplitImage[]> = {};
+        const images: ImageMeta[] = [];
         for (const r of records) {
           const meta = toImageMeta(r);
           if (r.b2_key) next.set(r.b2_key, meta);
           if (r.image_key) next.set(r.image_key, meta);
-          if (r.b2_key && meta.split) (nextBySplit[meta.split] ??= []).push({ key: r.b2_key, meta });
+          if (r.b2_key) images.push(meta);
         }
         byKey = next;
-        bySplit = nextBySplit;
+        groups = groupBySplit(images);
         rows = records.length;
         version = result.version;
         console.log(`Registry loaded: ${rows} rows from ${s.name}`);
@@ -262,7 +316,7 @@ export function createRegistry(
   return {
     lookup: (key) => byKey.get(key) ?? null,
     tagsFor: (split) => tagsBySplit.get(split) ?? [],
-    imagesBySplit: () => bySplit,
+    splitGroups: () => groups,
     async refresh() {
       if (!source && !tagsSource) return;
       if (inFlight) return inFlight;

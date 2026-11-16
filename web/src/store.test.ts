@@ -1,7 +1,7 @@
 import { createRoot } from "solid-js";
 import { afterEach, expect, test } from "vitest";
 import { createStore } from "./store";
-import type { FileEntry, FolderEntry, ImageMeta, ListResult, SplitImage } from "./types";
+import type { FileEntry, FolderEntry, ImageMeta, ListResult, SplitGroups } from "./types";
 
 const folder = (name: string, tags: string[] = []): FolderEntry => ({ name, prefix: `yeast/${name}/`, date: null, tags });
 const file = (name: string, gold: ImageMeta["gold"]): FileEntry => ({
@@ -30,13 +30,13 @@ const LISTINGS: Record<string, ListResult> = {
   },
 };
 
-// Registry images by split: alpha has a gold and a non-gold image, beta only a non-gold one.
-const SPLIT_IMAGES: Record<string, SplitImage[]> = {
+// Registry image groups by split: alpha has 1 gold and 2 non-gold images, beta 4 non-gold ones.
+const SPLIT_GROUPS: SplitGroups = {
   alpha: [
-    { key: "yeast/alpha/raw/cell_1.tiff", meta: { gold: "true", split: "alpha" } as ImageMeta },
-    { key: "yeast/alpha/raw/cell_2.tiff", meta: { gold: "false", split: "alpha" } as ImageMeta },
+    { meta: { gold: "true", split: "alpha" } as ImageMeta, count: 1 },
+    { meta: { gold: "false", split: "alpha" } as ImageMeta, count: 2 },
   ],
-  beta: [{ key: "yeast/beta/raw/cell_1.tiff", meta: { gold: "false", split: "beta" } as ImageMeta }],
+  beta: [{ meta: { gold: "false", split: "beta" } as ImageMeta, count: 4 }],
 };
 
 let dispose = () => {};
@@ -49,7 +49,7 @@ async function storeAt(prefix: string, pageSize?: number) {
     return createStore({
       listFolder: async (p) => LISTINGS[p] ?? { folders: [], files: [] },
       getRegistryStatus: async () => ({ configured: false, loaded: false, rows: 0, version: null, error: null }),
-      getSplitImages: async () => SPLIT_IMAGES,
+      getSplitGroups: async () => SPLIT_GROUPS,
     }, { pageSize });
   });
   s.init({ prefix: "yeast/", name: "yeast" });
@@ -132,7 +132,7 @@ test("init opens the start folder from the address, or the root when it is not i
     return createStore({
       listFolder: async () => ({ folders: [], files: [] }),
       getRegistryStatus: async () => ({ configured: false, loaded: false, rows: 0, version: null, error: null }),
-      getSplitImages: async () => ({}),
+      getSplitGroups: async () => ({}),
     });
   });
   s.init({ prefix: "yeast/", name: "yeast" }, raw);
@@ -267,13 +267,13 @@ test("at the top level a Field filter shows only splits with a matching image, w
   expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha", "beta"]);
   s.setFilter("gold", "Yes");
   expect(s.visibleFolders().map((f) => f.name)).toEqual(["alpha"]);
-  expect(s.splitMatch("alpha")).toEqual({ matched: 1, total: 2 });
+  expect(s.splitMatch("alpha")).toEqual({ matched: 1, total: 3 });
   expect(s.hiddenByFilters()).toBe(1);
 });
 
 test("at the top level the filter choices come from every split's images", async () => {
   const s = await storeAt("yeast/");
-  expect(s.filterFiles()).toHaveLength(3);
+  expect(s.filterFiles().map((f) => f.meta?.gold).sort()).toEqual(["false", "false", "true"]);
   s.navigate(raw);
   await loaded();
   expect(s.filterFiles().map((f) => f.name)).toEqual(["cell_1.tiff", "cell_2.tiff", "cell_3.tiff"]);

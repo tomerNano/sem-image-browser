@@ -1,5 +1,5 @@
 import { memoByKey } from "./lib/memo";
-import type { ListResult, RegistryStatus, SplitImages } from "./types";
+import type { ListResult, RegistryStatus, SplitGroups } from "./types";
 
 /** Where browsing starts (the server's B2_RAW_PREFIX). */
 export async function getRoot(): Promise<{ prefix: string; name: string }> {
@@ -28,20 +28,20 @@ async function fetchListing(prefix: string): Promise<ListResult> {
 /** One folder level, shared by every part of the page for LIST_TTL_MS. */
 export const listFolder = memoByKey(fetchListing, LIST_TTL_MS);
 
-/** How long the split images are reused; the server checks the Registry once a minute too. */
-const SPLIT_IMAGES_TTL_MS = 60_000;
+/** How long the split groups are reused; the server checks the Registry once a minute too. */
+const SPLIT_GROUPS_TTL_MS = 60_000;
 
-/** Registry images of every split, for the Field filters at the top level. */
-async function fetchSplitImages(): Promise<SplitImages> {
-  const res = await fetch("/api/split-images");
+/** Registry image groups of every split, for the Field filters at the top level. */
+async function fetchSplitGroups(): Promise<SplitGroups> {
+  const res = await fetch("/api/split-groups");
   if (!res.ok) throw new Error(`Request failed (${res.status})`);
   return (await res.json()).splits;
 }
 
-const splitImagesOnce = memoByKey(fetchSplitImages, SPLIT_IMAGES_TTL_MS);
+const splitGroupsOnce = memoByKey(fetchSplitGroups, SPLIT_GROUPS_TTL_MS);
 
-/** Registry images by split, shared by every caller for SPLIT_IMAGES_TTL_MS. */
-export const getSplitImages = () => splitImagesOnce("all");
+/** Image groups by split, shared by every caller for SPLIT_GROUPS_TTL_MS. */
+export const getSplitGroups = () => splitGroupsOnce("all");
 
 /** Whether the server has Registry metadata (for the status bar warning). */
 export async function getRegistryStatus(): Promise<RegistryStatus> {

@@ -198,19 +198,26 @@ test("a split_tags.csv with a wrong header and no rows keeps the last good tags"
   expect(reg.tagsFor("b1")).toEqual(["10-3", "ctrl"]);
 });
 
-test("imagesBySplit groups Registry images by their split, every variant included", async () => {
-  const header = "image_id,b2_key,current_split,image_variant,width_px,height_px";
+test("splitGroups counts each split's images by their filter values, every variant included", async () => {
+  const header = "image_id,b2_key,current_split,image_variant,width_px,height_px,acquired_at";
   const text = [
     header,
-    "i1,yeast/s1/raw/cell_1.tiff,s1,raw,1920,1200",
-    "i2,yeast/s1/raw/cell_2.tiff,s1,raw,7680,5100",
-    "i3,yeast/s2/raw/cell_1.tiff,s2,raw,1920,1200",
-    "i4,yeast/s2/raw/cell_9.tiff,,raw,1920,1200",
+    "i1,yeast/s1/raw/cell_1.tiff,s1,raw,1920,1200,2026-10-12T11:00:00",
+    "i2,yeast/s1/raw/cell_2.tiff,s1,raw,1920,1200,2026-10-12T11:05:00",
+    "i3,yeast/s1/raw/cell_3.tiff,s1,raw,7680,5100,2026-10-12T11:09:00",
+    "i4,yeast/s1/pre/cell_1.tiff,s1,gamma_1.3,1920,1200,",
+    "i5,yeast/s2/raw/cell_1.tiff,s2,raw,1920,1200,",
+    "i6,yeast/s2/raw/cell_9.tiff,,raw,1920,1200,",
   ].join("\n");
   const reg = createRegistry(memorySource(text).source, 0);
   await reg.refresh();
-  const bySplit = reg.imagesBySplit();
-  expect(Object.keys(bySplit).sort()).toEqual(["s1", "s2"]);
-  expect(bySplit.s1.map((i) => i.key)).toEqual(["yeast/s1/raw/cell_1.tiff", "yeast/s1/raw/cell_2.tiff"]);
-  expect(bySplit.s1[1].meta).toMatchObject({ widthPx: 7680, heightPx: 5100, split: "s1" });
+  const groups = reg.splitGroups();
+  expect(Object.keys(groups).sort()).toEqual(["s1", "s2"]);
+  // i1 and i2 differ only in values nobody filters by (id, time), so they are one group of 2.
+  expect(groups.s1.map((g) => [g.meta.widthPx, g.meta.variant, g.count])).toEqual([
+    [1920, "raw", 2],
+    [7680, "raw", 1],
+    [1920, "gamma_1.3", 1],
+  ]);
+  expect(groups.s1[0].meta).toMatchObject({ split: "s1", imageId: "", acquiredAt: null });
 });
