@@ -149,9 +149,35 @@ export function toImageMeta(r: Record<string, string>): ImageMeta {
   };
 }
 
+/** The Registry file with each split's tags, in the same directory as images.csv. */
+export const SPLIT_TAGS_FILE = "split_tags.csv";
+
+/**
+ * split_tags.csv (columns `split,tag`, one row per tag) into tags by split, in file order.
+ * Blank cells and repeated tags are dropped. Throws when the columns are missing.
+ */
+export function parseSplitTags(text: string): Map<string, string[]> {
+  const records = parseCsv(text);
+  if (records.length > 0 && (!("split" in records[0]) || !("tag" in records[0]))) {
+    throw new Error("split_tags.csv needs split and tag columns");
+  }
+  const bySplit = new Map<string, string[]>();
+  for (const r of records) {
+    const split = (r.split ?? "").trim();
+    const tag = (r.tag ?? "").trim();
+    if (!split || !tag) continue;
+    const tags = bySplit.get(split) ?? [];
+    if (!tags.includes(tag)) tags.push(tag);
+    bySplit.set(split, tags);
+  }
+  return bySplit;
+}
+
 export type Registry = {
   /** Metadata for one B2 key, or null when the Registry has no row for it. */
   lookup(key: string): ImageMeta | null;
+  /** Tags of one split (a batch folder name), from split_tags.csv; [] when it has none. */
+  tagsFor(split: string): string[];
   /** Re-reads the source if it changed. Never throws: a failure keeps the last good data. */
   refresh(): Promise<void>;
   status(): RegistryStatus;
@@ -161,14 +187,40 @@ export type Registry = {
  * In-memory index of images.csv by B2 key. Each row is indexed under its raw file (`b2_key`) and,
  * when present, its preprocessed variant (`image_key`), so both files show the same metadata.
  * `checkEveryMs` limits how often refresh() asks the source (0 = every call).
+ * `tagsSource` (split_tags.csv) is read in the same refresh; its failures never touch the
+ * images.csv data or `status().error`.
  */
-export function createRegistry(source: RegistrySource | null, checkEveryMs = 5000): Registry {
+export function createRegistry(
+  source: RegistrySource | null,
+  checkEveryMs = 5000,
+  tagsSource: RegistrySource | null = null,
+): Registry {
   let byKey = new Map<string, ImageMeta>();
   let rows = 0;
   let version: string | null = null;
   let error: string | null = source ? null : "Registry not configured";
+  let tagsBySplit = new Map<string, string[]>();
+  let tagsVersion: string | null = null;
+  let tagsError: string | null = null;
   let lastCheck = -Infinity;
   let inFlight: Promise<void> | null = null;
+
+  async function reloadTags(s: RegistrySource): Promise<void> {
+    try {
+      const result = await s.load(tagsVersion);
+      if (result !== "unchanged") {
+        tagsBySplit = parseSplitTags(result.text);
+        tagsVersion = result.version;
+        console.log(`Registry tags loaded: ${tagsBySplit.size} splits from ${s.name}`);
+      }
+      tagsError = null;
+    } catch (err) {
+      const message = (err as Error).message;
+      // Log a failure once, not on every listing request while it lasts.
+      if (message !== tagsError) console.error(`Registry tags ${s.name}: ${message}`, (err as Error).cause ?? "");
+      tagsError = message;
+    }
+  }
 
   async function reload(s: RegistrySource): Promise<void> {
     try {
@@ -197,12 +249,16 @@ export function createRegistry(source: RegistrySource | null, checkEveryMs = 500
 
   return {
     lookup: (key) => byKey.get(key) ?? null,
+    tagsFor: (split) => tagsBySplit.get(split) ?? [],
     async refresh() {
-      if (!source) return;
+      if (!source && !tagsSource) return;
       if (inFlight) return inFlight;
       if (Date.now() - lastCheck < checkEveryMs) return;
       lastCheck = Date.now();
-      inFlight = reload(source).finally(() => (inFlight = null));
+      // Each load catches its own errors, so one file never blocks the other.
+      inFlight = Promise.all([source && reload(source), tagsSource && reloadTags(tagsSource)])
+        .then(() => undefined)
+        .finally(() => (inFlight = null));
       return inFlight;
     },
     status: () => ({ configured: source !== null, loaded: version !== null, rows, version, error }),

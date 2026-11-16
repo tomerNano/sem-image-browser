@@ -7,7 +7,7 @@ import { createDiskCache } from "./cache.js";
 import { loadConfig } from "./config.js";
 import { createImageRenderer } from "./images.js";
 import { createLimiter } from "./limit.js";
-import { createFileSource, createGitHubSource, createRegistry, type RegistrySource } from "./registry.js";
+import { createFileSource, createGitHubSource, createRegistry, SPLIT_TAGS_FILE, type RegistrySource } from "./registry.js";
 
 // How often a listing may ask the Registry source for changes. A local file costs one stat call;
 // GitHub costs one HTTP request (a free 304 when unchanged), so it is asked less often.
@@ -29,15 +29,20 @@ try {
 }
 
 const b2 = createB2(config);
+// split_tags.csv sits next to images.csv in both sources (GitHub paths always use "/").
 let registrySource: RegistrySource | null = null;
+let tagsSource: RegistrySource | null = null;
 let registryCheckEveryMs = FILE_CHECK_EVERY_MS;
 if (config.registry?.kind === "file") {
   registrySource = createFileSource(config.registry.path);
+  tagsSource = createFileSource(path.join(path.dirname(config.registry.path), SPLIT_TAGS_FILE));
 } else if (config.registry?.kind === "github") {
   registrySource = createGitHubSource(config.registry);
+  const tagsPath = path.posix.join(path.posix.dirname(config.registry.path), SPLIT_TAGS_FILE);
+  tagsSource = createGitHubSource({ ...config.registry, path: tagsPath });
   registryCheckEveryMs = GITHUB_CHECK_EVERY_MS;
 }
-const registry = createRegistry(registrySource, registryCheckEveryMs);
+const registry = createRegistry(registrySource, registryCheckEveryMs, tagsSource);
 const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir, config.cacheMaxBytes), limit: createLimiter(4) });
 // Production (`npm start` passes --production): this one process also serves web/dist.
 const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";

@@ -2,7 +2,7 @@ import { mkdtemp, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test } from "vitest";
-import { createFileSource, createGitHubSource, createRegistry, type RegistrySource } from "../src/registry.js";
+import { createFileSource, createGitHubSource, createRegistry, parseSplitTags, type RegistrySource } from "../src/registry.js";
 
 const HEADER = "image_id,b2_key,image_key,gold,instrument_model,field_width_um,pixel_size_um,magnification,acquired_at";
 const RAW = "yeast/b1/raw/cell_1.tiff";
@@ -145,4 +145,44 @@ test("GitHub source: an error status becomes a clear Registry error without the 
 test("GitHub source: a rejected token says so", async () => {
   const { fetchFn } = fakeFetch(new Response("Bad credentials", { status: 401 }));
   await expect(createGitHubSource(GITHUB, fetchFn).load(null)).rejects.toThrow(/token rejected/);
+});
+
+const TAGS = "split,tag\nb1,10-3\nb1,10-3\nb1,ctrl\nb2,10-5\nb3,\n";
+
+test("parseSplitTags groups tags by split, drops blanks and repeats, keeps file order", () => {
+  const m = parseSplitTags(TAGS);
+  expect(m.get("b1")).toEqual(["10-3", "ctrl"]);
+  expect(m.get("b2")).toEqual(["10-5"]);
+  expect(m.has("b3")).toBe(false);
+});
+
+test("parseSplitTags rejects a file without split and tag columns", () => {
+  expect(() => parseSplitTags("name,label\nb1,10-3\n")).toThrow("split_tags.csv needs split and tag columns");
+});
+
+test("tagsFor reads the tags source on refresh; unknown splits have no tags", async () => {
+  const reg = createRegistry(memorySource(csv()).source, 0, memorySource(TAGS).source);
+  await reg.refresh();
+  expect(reg.tagsFor("b1")).toEqual(["10-3", "ctrl"]);
+  expect(reg.tagsFor("nope")).toEqual([]);
+});
+
+test("a failing tags source keeps images.csv metadata and the last good tags", async () => {
+  const tags = memorySource(TAGS);
+  const reg = createRegistry(memorySource(csv()).source, 0, tags.source);
+  await reg.refresh();
+  tags.state.fail = true;
+  tags.state.version = 2;
+  await reg.refresh();
+  expect(reg.tagsFor("b2")).toEqual(["10-5"]);
+  expect(reg.lookup(RAW)?.imageId).toBe("img_1");
+  expect(reg.status().error).toBeNull();
+});
+
+test("a missing tags source from the start means no tags, metadata still loads", async () => {
+  const missing: RegistrySource = { name: "missing", load: async () => Promise.reject(new Error("Registry file not found")) };
+  const reg = createRegistry(memorySource(csv()).source, 0, missing);
+  await reg.refresh();
+  expect(reg.tagsFor("b1")).toEqual([]);
+  expect(reg.lookup(RAW)).not.toBeNull();
 });
