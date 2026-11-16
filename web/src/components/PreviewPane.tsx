@@ -1,5 +1,5 @@
 import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
-import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl } from "../api";
+import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl, thumbUrl } from "../api";
 import { FIELDS, PREVIEW_GROUPS, type Field, type PreviewGroup } from "../lib/fields";
 import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
@@ -76,11 +76,23 @@ function CopyName(props: { name: string }) {
 
 function FilePreview(props: { file: FileEntry }) {
   const [failed, setFailed] = createSignal(false);
+  const [loaded, setLoaded] = createSignal(false);
   return (
     <>
+      {/* The thumbnail (usually already in the browser cache from the grid) shows at once and
+          holds the place until the sharper preview has loaded on top of it. */}
       <div class="preview-frame">
         <Show when={!failed()} fallback={<span class="no-preview">No preview. The original can still be downloaded.</span>}>
-          <img src={previewUrl(props.file.key, props.file.uploaded)} alt={props.file.name} onError={() => setFailed(true)} />
+          <Show when={!loaded()}>
+            <img src={thumbUrl(props.file.key, props.file.uploaded)} alt="" />
+          </Show>
+          <img
+            classList={{ loading: !loaded() }}
+            src={previewUrl(props.file.key, props.file.uploaded)}
+            alt={props.file.name}
+            onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
+          />
         </Show>
       </div>
       <div class="preview-title">

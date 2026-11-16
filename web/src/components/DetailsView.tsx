@@ -81,7 +81,12 @@ export default function DetailsView() {
           <SelectAllBox />
           <For each={columns()}>
             {(col) => (
-              <th class="eyebrow" onClick={() => store.sortBy(col.id)}>
+              <th
+                class="eyebrow"
+                // Number columns are right-aligned, so their header sits over the digits.
+                classList={{ num: col.column!.cell === "num" }}
+                onClick={() => store.sortBy(col.id)}
+              >
                 {col.label}
                 {store.sortColumn() === col.id ? (store.sortDir() === "asc" ? " ▲" : " ▼") : ""}
               </th>
