@@ -11,6 +11,9 @@ import TagPills from "./TagPills";
  */
 const ROOT_ONLY: ReadonlySet<FieldId> = new Set(["date", "tag"]);
 
+/** Tag pills shown in a table cell before "+N": keeps every row one line tall. */
+const TAG_CELL_LIMIT = 2;
+
 /**
  * Details columns: every Field marked as a column, in table order, batch Fields only at the top
  * level. With no files shown (folders only), only the columns a folder fills in remain.
@@ -122,7 +125,7 @@ export default function DetailsView() {
                     </td>
                   ) : col.column!.cell === "tags" ? (
                     <td>
-                      <TagPills tags={folder.tags} />
+                      <TagPills tags={folder.tags} limit={TAG_CELL_LIMIT} />
                     </td>
                   ) : (
                     <td class={cellClass(col)}>{col.folder?.(folder) ?? ""}</td>
@@ -155,7 +158,7 @@ export default function DetailsView() {
                     </td>
                   ) : col.column!.cell === "tags" ? (
                     <td>
-                      <TagPills tags={file.tags} />
+                      <TagPills tags={file.tags} limit={TAG_CELL_LIMIT} />
                     </td>
                   ) : (
                     <td class={cellClass(col)}>{col.format(file)}</td>

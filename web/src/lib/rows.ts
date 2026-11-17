@@ -31,6 +31,38 @@ export function hasTag(tags: string[], chosen: string[]): boolean {
   return chosen.length === 0 || chosen.some((tag) => tags.includes(tag));
 }
 
+/**
+ * The first `limit` tags and how many are left out, for a one-line tag cell ("10-3 ctrl +6").
+ *
+ * Args:
+ *   tags: A split's tags, in Registry order.
+ *   limit: Most tags shown.
+ *
+ * Returns:
+ *   The tags to show and the count of the rest.
+ */
+export function shortTagList(tags: string[], limit: number): { shown: string[]; more: number } {
+  return { shown: tags.slice(0, limit), more: Math.max(0, tags.length - limit) };
+}
+
+/**
+ * Tag filter options that contain the search text (any case). Chosen tags always stay, so a
+ * search never hides a tag that is filtering right now.
+ *
+ * Args:
+ *   tags: All tag options, in display order.
+ *   query: Search text; blank shows every tag.
+ *   chosen: Tags chosen in the filter.
+ *
+ * Returns:
+ *   The options to show, in the same order.
+ */
+export function searchTags(tags: string[], query: string, chosen: string[]): string[] {
+  const q = query.trim().toLowerCase();
+  if (q === "") return tags;
+  return tags.filter((tag) => chosen.includes(tag) || tag.toLowerCase().includes(q));
+}
+
 /** Tag filter options: the distinct tags of `folders` plus the chosen ones, in natural order. */
 export function tagChoices(folders: FolderEntry[], chosen: string[]): string[] {
   const found = new Set<string>(chosen);

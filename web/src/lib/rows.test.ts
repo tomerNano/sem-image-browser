@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../types";
-import { hasTag, preparingLabel, sortFolders, tagChoices } from "./rows";
+import { hasTag, preparingLabel, searchTags, shortTagList, sortFolders, tagChoices } from "./rows";
 
 const f = (name: string, date: string | null, tags: string[] = []): FolderEntry => ({ name, prefix: `r/${name}/`, date, tags });
 const batches = [f("2026-10-06_b", "2026-10-06"), f("old", null), f("2026-10-19_a", "2026-10-19")];
@@ -41,4 +41,16 @@ test("sortFolders by tag: first tag order, untagged last", () => {
 test("preparingLabel: original size, then whole seconds waited once the first second has passed", () => {
   expect(preparingLabel(78 * 1024 * 1024, 400)).toBe("Preparing preview · 78.0 MB original");
   expect(preparingLabel(78 * 1024 * 1024, 12_700)).toBe("Preparing preview · 78.0 MB original · 12 s");
+});
+
+test("shortTagList: the first tags up to the limit, and how many more there are", () => {
+  expect(shortTagList(["a", "b", "c", "d"], 2)).toEqual({ shown: ["a", "b"], more: 2 });
+  expect(shortTagList(["a", "b"], 2)).toEqual({ shown: ["a", "b"], more: 0 });
+});
+
+test("searchTags: tags containing the text, any case; chosen tags always stay", () => {
+  const all = ["10-3", "10-5", "ctrl", "DMSO-24h", "dmso-48h"];
+  expect(searchTags(all, "dmso", [])).toEqual(["DMSO-24h", "dmso-48h"]);
+  expect(searchTags(all, "dmso", ["ctrl"])).toEqual(["ctrl", "DMSO-24h", "dmso-48h"]);
+  expect(searchTags(all, "  ", [])).toEqual(all);
 });

@@ -1330,6 +1330,52 @@ kbd {
   gap: 4px;
 }
 
+/* Table cells: never wrap; the rest of the tags are behind "+N" and in the tooltip. */
+.tag-pills.one-line {
+  flex-wrap: nowrap;
+}
+
+.tag-more {
+  color: var(--muted);
+}
+
+.tag-pills.has-more {
+  cursor: default;
+  border-radius: 10px;
+}
+
+.tag-pills.has-more:hover .tag-more,
+.tag-pills.has-more:focus-visible .tag-more {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tag-pills.has-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Card with every tag, opened by hovering or focusing "+N" pills. */
+.tag-card {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 260px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(15, 20, 40, 0.12);
+  pointer-events: none;
+}
+
+.tag-card-title {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
 .tag-pill {
   display: inline-flex;
   align-items: center;
@@ -1357,13 +1403,33 @@ kbd {
   padding: 0 8px 8px;
 }
 
-/* One toggle per tag, wrapping to more lines when there are many. */
+/* Search box (many tags only) above the toggles. */
+.tag-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  width: 200px;
+}
+
+.tag-search {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* One toggle per tag, wrapping to more lines; a long list scrolls instead of stretching the panel. */
 .tag-choices {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
   max-width: 200px;
+  max-height: 168px;
+  overflow-y: auto;
 }
 
 .tag-choice {

@@ -38,6 +38,12 @@ Several tags can be chosen (one toggle per tag, `toggleTag` in the store). A spl
 **any** chosen tag: a split usually has one tag, so "all chosen tags" would match nothing. Each
 chosen tag is its own chip and counts once in the filter badge.
 
+Many tags: a Details cell shows at most 2 pills, then "+N" (`TagPills` with `limit`, `shortTagList`
+in `lib/rows.ts`); hovering or focusing them opens a card with every tag. The card is rendered
+through a Solid `Portal` at the end of `<body>` with `position: fixed`, so the table's scroll area
+cannot cut it off. With more than 12 tags the filter panel shows a search box (`searchTags`), and
+the tag list scrolls after about 7 lines. Chosen tags always stay visible during a search.
+
 ## One neutral pill
 
 Every tag value looks the same (`.tag-pill`, colors from `--pill-bg` and `--pill-border`). A color
