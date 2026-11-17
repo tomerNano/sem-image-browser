@@ -1,0 +1,1173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>b2-GUI Architecture Tour</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --ink: #18202b; --ink-2: #4a5566; --ink-3: #7b8696;
+  --line: #dde2e9; --line-2: #c7ced8; --accent: #2f6fde; --accent-ink: #ffffff;
+  --browser: #0f9b8e; --browser-bg: #e3f6f3; --server: #5b5bd6; --server-bg: #ecebfc; --outside: #c27c0e; --outside-bg: #fbf1df;
+  --sig: #0f9b8e; --memo: #7c4ddb; --res: #2f6fde; --eff: #d9480f; --dom: #c2255c; --tmr: #6b7280; --obs: #2b8a3e;
+  --ok: #2b8a3e; --ok-bg: #e6f4ea; --open: #c92a2a; --open-bg: #fdecec;
+  --code-bg: #0f1722; --code-ink: #dbe4f0; --code-gutter: #5d6b7e; --tok-kw: #c792ea; --tok-str: #a5d6a7; --tok-com: #6f7f94; --tok-num: #f7b267;
+  --dim: 0.45; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 4px 16px rgba(16,24,40,.06);
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117; --panel: #151b23; --panel-2: #1b222c; --ink: #e6ebf2; --ink-2: #a9b4c2; --ink-3: #7a8696;
+    --line: #2a323d; --line-2: #3a4450; --accent: #5b9cff; --accent-ink: #0d1117;
+    --browser: #3cc7b8; --browser-bg: #10302d; --server: #9b9bff; --server-bg: #1f1f45; --outside: #f0ad4e; --outside-bg: #3a2a10;
+    --sig: #3cc7b8; --memo: #b18cff; --res: #5b9cff; --eff: #ff8a50; --dom: #f06595; --tmr: #9aa4b2; --obs: #69db7c;
+    --ok: #69db7c; --ok-bg: #12301b; --open: #ff8787; --open-bg: #3a1616;
+    --code-bg: #0a0f16; --dim: 0.4; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117; --panel: #151b23; --panel-2: #1b222c; --ink: #e6ebf2; --ink-2: #a9b4c2; --ink-3: #7a8696;
+  --line: #2a323d; --line-2: #3a4450; --accent: #5b9cff; --accent-ink: #0d1117;
+  --browser: #3cc7b8; --browser-bg: #10302d; --server: #9b9bff; --server-bg: #1f1f45; --outside: #f0ad4e; --outside-bg: #3a2a10;
+  --sig: #3cc7b8; --memo: #b18cff; --res: #5b9cff; --eff: #ff8a50; --dom: #f06595; --tmr: #9aa4b2; --obs: #69db7c;
+  --ok: #69db7c; --ok-bg: #12301b; --open: #ff8787; --open-bg: #3a1616;
+  --code-bg: #0a0f16; --dim: 0.4; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--mono); font-size: .88em; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 .3em; }
+h1, h2, h3, h4 { line-height: 1.25; margin: 0; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 20px; }
+
+/* Header */
+header.top { background: var(--panel); border-bottom: 1px solid var(--line); }
+header.top .wrap { padding-top: 26px; padding-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-end; justify-content: space-between; }
+.title-block h1 { font-size: 28px; letter-spacing: -.01em; }
+.title-block p { margin: 6px 0 0; color: var(--ink-2); max-width: 640px; }
+.meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 12px/1 var(--mono); padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2); white-space: nowrap; }
+.pill b { color: var(--ink); font-weight: 600; }
+.repo-field { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
+.repo-field input { font: 12px var(--mono); width: 300px; max-width: 60vw; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.btn { font: 600 13px var(--sans); border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:disabled { opacity: .4; cursor: default; }
+
+nav.toc { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 8px; padding-bottom: 8px; scrollbar-width: none; }
+nav.toc a { font-size: 13px; font-weight: 600; color: var(--ink-2); padding: 6px 10px; border-radius: 6px; white-space: nowrap; }
+nav.toc a:hover { background: var(--panel-2); color: var(--ink); text-decoration: none; }
+
+section.block { padding: 40px 0 8px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 16px; }
+.sec-head h2 { font-size: 22px; }
+.sec-head .kicker { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.sec-head p { margin: 0; color: var(--ink-2); flex-basis: 100%; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+
+/* Tour layout */
+.tour { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.map-card { position: sticky; top: 58px; padding: 12px; }
+.map-card svg { width: 100%; height: auto; max-height: calc(100vh - 210px); display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-3); padding: 8px 4px 2px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.node-info { margin-top: 8px; border-top: 1px dashed var(--line-2); padding: 10px 4px 2px; font-size: 13.5px; min-height: 64px; }
+.node-info .hint { color: var(--ink-3); }
+.node-info h4 { font: 600 14px var(--mono); margin-bottom: 4px; }
+.node-info ul { margin: 4px 0 6px; padding-left: 18px; }
+
+svg .lane-bg { stroke-width: 1; }
+svg .lane-title { font: 700 11px var(--mono); letter-spacing: .1em; }
+svg .lane-note { font: 12px var(--sans); fill: var(--ink-3); }
+svg .node { cursor: pointer; transition: opacity .2s; }
+svg .node rect { fill: var(--panel); stroke-width: 1.5; transition: stroke-width .2s, fill .2s; }
+svg .node .n-title { font: 600 14.5px var(--mono); fill: var(--ink); }
+svg .node .n-sub { font: 11.5px var(--sans); fill: var(--ink-3); }
+svg .node:hover rect { stroke-width: 2.5; }
+svg .edge { fill: none; stroke: var(--line-2); stroke-width: 1.6; transition: opacity .2s, stroke .2s; }
+svg.tracing .node:not(.on) { opacity: var(--dim); }
+svg.tracing .edge:not(.on) { opacity: .35; }
+svg .node.on rect { stroke-width: 3; }
+svg .edge.on { stroke: var(--accent); stroke-width: 2.6; stroke-dasharray: 6 5; animation: flow 0.9s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -11; } }
+@media (prefers-reduced-motion: reduce) { svg .edge.on { animation: none; } }
+
+.trace-panel { padding: 16px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tab { font: 600 12.5px var(--sans); border: 1px solid var(--line); background: var(--panel-2); color: var(--ink-2); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.tab:hover { color: var(--ink); border-color: var(--line-2); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.trace-blurb { color: var(--ink-2); font-size: 13.5px; margin: 0 0 12px; }
+.progress { display: flex; gap: 4px; margin-bottom: 14px; }
+.progress button { flex: 1; height: 6px; border: 0; padding: 0; border-radius: 3px; background: var(--line); cursor: pointer; }
+.progress button.done { background: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.progress button.cur { background: var(--accent); }
+.step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.step-num { font: 600 12px var(--mono); color: var(--ink-3); }
+.lane-chip { font: 700 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; }
+.lane-chip.browser { color: var(--browser); background: var(--browser-bg); }
+.lane-chip.server { color: var(--server); background: var(--server-bg); }
+.lane-chip.outside { color: var(--outside); background: var(--outside-bg); }
+.step-title { font-size: 18px; margin-bottom: 8px; }
+ul.bullets { margin: 0 0 10px; padding-left: 0; list-style: none; }
+ul.bullets li { position: relative; padding-left: 18px; margin: 5px 0; }
+ul.bullets li::before { content: ""; position: absolute; left: 4px; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--accent); }
+.why { font-size: 13.5px; background: var(--panel-2); border-left: 3px solid var(--accent); padding: 7px 10px; border-radius: 0 6px 6px 0; margin: 0 0 12px; }
+.why b { color: var(--accent); }
+.controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.controls .kbd-hint { font-size: 12px; color: var(--ink-3); }
+kbd { font: 11px var(--mono); border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; background: var(--panel); }
+.notes { font-size: 12.5px; color: var(--ink-3); margin-top: 12px; }
+
+/* Code */
+.code { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); margin: 10px 0; background: var(--code-bg); }
+.code-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; background: color-mix(in srgb, var(--code-bg) 85%, #ffffff 15%); font: 12px var(--mono); color: var(--code-ink); }
+.code-head a { color: #8ab4ff; }
+.code-head .open { font-family: var(--sans); font-size: 11.5px; opacity: .85; }
+.code-body { display: flex; overflow-x: auto; max-height: 340px; overflow-y: auto; }
+.code-body pre { margin: 0; padding: 10px 12px; font: 12.5px/1.6 var(--mono); }
+.code-body .gutter { color: var(--code-gutter); text-align: right; user-select: none; padding-right: 8px; border-right: 1px solid #ffffff14; position: sticky; left: 0; background: var(--code-bg); }
+.code-body .src { color: var(--code-ink); }
+.tk-k { color: var(--tok-kw); } .tk-s { color: var(--tok-str); } .tk-c { color: var(--tok-com); font-style: italic; } .tk-n { color: var(--tok-num); }
+
+/* Ref links */
+a.ref { font: 12px var(--mono); white-space: nowrap; }
+
+/* Concepts */
+.concepts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.concept { padding: 14px; }
+.concept .tag { font: 700 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.concept h3 { font: 600 15px var(--mono); margin: 4px 0 6px; }
+.concept p { margin: 0 0 6px; font-size: 13.5px; color: var(--ink-2); }
+.concept .react { font-size: 12.5px; color: var(--ink-3); }
+
+/* Store graph */
+.graph { padding: 8px 16px 14px; }
+.chain-row { padding: 12px 0; border-bottom: 1px dashed var(--line); }
+.chain-row:last-child { border-bottom: 0; }
+.chain-row h4 { font-size: 13px; color: var(--ink-2); margin-bottom: 8px; }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chain .arrow { color: var(--ink-3); font-size: 14px; }
+.chain .group { display: inline-flex; flex-direction: column; gap: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 12.5px var(--mono); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); white-space: nowrap; }
+.chip:hover { text-decoration: none; border-color: var(--line-2); }
+.chip .k { font: 700 9.5px var(--sans); letter-spacing: .06em; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; color: var(--panel); }
+.k-signal { background: var(--sig); } .k-memo { background: var(--memo); } .k-resource { background: var(--res); }
+.k-effect { background: var(--eff); } .k-dom { background: var(--dom); } .k-timer { background: var(--tmr); } .k-observer { background: var(--obs); }
+.k-ui { background: var(--ink-2); } .k-fn { background: var(--ink-3); }
+.feeds { font-size: 12.5px; color: var(--ink-3); margin-top: 8px; }
+
+/* Listener table */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.filters button { font: 600 12px var(--sans); border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); border-radius: 999px; padding: 5px 10px; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+table.inv { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.inv th { text-align: left; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+table.inv td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.inv tr:last-child td { border-bottom: 0; }
+table.inv td.side { font: 600 11px var(--mono); color: var(--ink-3); }
+.cleanup-ok { color: var(--ok); } .cleanup-page { color: var(--ink-3); }
+
+/* Decisions */
+.decisions { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.decision { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.decision .area { font: 700 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.decision h3 { font-size: 15.5px; }
+.vs { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 13px; }
+.vs span:nth-child(odd) { font: 700 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding-top: 2px; }
+.vs .chose-l { color: var(--ok); } .vs .over-l { color: var(--ink-3); } .vs .cost-l { color: var(--eff); }
+.decision ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-2); }
+.decision .refs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.decision .refs a.ref { white-space: normal; overflow-wrap: anywhere; }
+
+/* Security */
+.sec-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.sec-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+details.q { padding: 0; }
+details.q summary { list-style: none; cursor: pointer; padding: 12px 14px; display: flex; gap: 10px; align-items: center; }
+details.q summary::-webkit-details-marker { display: none; }
+details.q summary .qt { font-weight: 600; flex: 1; }
+details.q summary .chev { color: var(--ink-3); transition: transform .2s; }
+details.q[open] summary .chev { transform: rotate(90deg); }
+.status { font: 700 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 3px 7px; border-radius: 5px; white-space: nowrap; }
+.status.ok { color: var(--ok); background: var(--ok-bg); } .status.open { color: var(--open); background: var(--open-bg); }
+details.q .body { padding: 0 14px 12px 14px; }
+
+/* Demo + learn */
+ol.demo { margin: 0; padding: 14px 18px 14px 38px; }
+ol.demo li { margin: 6px 0; }
+ol.demo button { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; font-weight: 600; }
+.learn { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.learn a { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); font-size: 13.5px; }
+.learn a:hover { border-color: var(--accent); text-decoration: none; }
+.learn a span { font: 600 12px var(--mono); color: var(--ink-3); }
+footer { padding: 40px 0 60px; color: var(--ink-3); font-size: 12.5px; }
+
+@media (max-width: 1000px) {
+  .tour { grid-template-columns: minmax(0, 1fr); }
+  .map-card { position: static; }
+  .map-card svg { max-height: none; }
+}
+@media (max-width: 720px) {
+  .wrap { padding: 0 16px; }
+  .title-block h1 { font-size: 22px; }
+  .repo-field { flex-wrap: wrap; width: 100%; }
+  .repo-field input { width: 100%; max-width: none; }
+  table.inv thead { display: none; }
+  table.inv, table.inv tbody, table.inv tr, table.inv td { display: block; width: 100%; }
+  table.inv tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  table.inv td { border: 0; padding: 3px 12px; }
+  .decisions { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="title-block">
+      <h1>b2-GUI · architecture tour</h1>
+      <p>How the browser, the server and B2 work together at runtime. Step through real clicks, see every listener, and read why each choice was made.</p>
+    </div>
+    <div class="meta">
+      <span class="pill">pinned to <b>d851b99</b></span>
+      <label class="repo-field">Repo on this PC <input id="repoRoot" spellcheck="false" aria-label="Repository path for VS Code links"></label>
+      <button class="btn" id="themeBtn" type="button">Theme</button>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#tour">Map &amp; traces</a>
+    <a href="#solid">Solid in 60 s</a>
+    <a href="#graph">Store graph</a>
+    <a href="#listeners">Listeners &amp; effects</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#security">Security</a>
+    <a href="#demo">Demo script</a>
+    <a href="#learn">Learn notes</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section class="block" id="tour">
+    <div class="sec-head">
+      <span class="kicker">01 · runtime</span><h2>Map &amp; traces</h2>
+      <p>Pick a trace. Each step lights the boxes it touches and shows the exact code. Click any box for its role.</p>
+    </div>
+    <div class="tour">
+      <div class="card map-card">
+        <svg id="map" viewBox="0 0 900 690" role="img" aria-label="System map: browser, server, outside services"></svg>
+        <div class="legend">
+          <span><i style="background:var(--browser)"></i>Browser (SolidJS)</span>
+          <span><i style="background:var(--server)"></i>Server (Node + Express 5)</span>
+          <span><i style="background:var(--outside)"></i>Outside services</span>
+          <span><i style="background:var(--accent)"></i>Active path</span>
+        </div>
+        <div class="node-info" id="nodeInfo"><span class="hint">Click a box to see what it owns.</span></div>
+      </div>
+      <div class="card trace-panel">
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <p class="trace-blurb" id="blurb"></p>
+        <div class="progress" id="progress"></div>
+        <div id="step"></div>
+        <div class="controls">
+          <button class="btn" id="prevBtn" type="button">← Back</button>
+          <span class="kbd-hint"><kbd>←</kbd> <kbd>→</kbd> step</span>
+          <button class="btn primary" id="nextBtn" type="button">Next →</button>
+        </div>
+        <div class="notes" id="traceNotes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="solid">
+    <div class="sec-head">
+      <span class="kicker">02 · vocabulary</span><h2>Solid in 60 seconds</h2>
+      <p>Six words explain the whole front end. Each card links to the line in this app that uses it.</p>
+    </div>
+    <div class="concepts" id="concepts"></div>
+  </section>
+
+  <section class="block" id="graph">
+    <div class="sec-head">
+      <span class="kicker">03 · state</span><h2>Store graph</h2>
+      <p><code>store.ts</code> holds all app state. Signals are inputs; memos derive from them; components read memos. A change flows left to right and touches only what reads it.</p>
+    </div>
+    <div class="card graph" id="graphRows"></div>
+  </section>
+
+  <section class="block" id="listeners">
+    <div class="sec-head">
+      <span class="kicker">04 · who is listening</span><h2>Listeners &amp; effects</h2>
+      <p>Everything that waits for an event, a timer or a change. JSX handlers like <code>onClick</code> are not listed: Solid attaches and removes them with the element.</p>
+    </div>
+    <div class="filters" id="invFilters"></div>
+    <div class="card" style="overflow:hidden">
+      <table class="inv">
+        <thead><tr><th>Kind</th><th>Where</th><th>Trigger</th><th>Does</th><th>Removed by</th></tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="decisions">
+    <div class="sec-head">
+      <span class="kicker">05 · why</span><h2>Decisions</h2>
+      <p>What was chosen, what it beat, and what it costs. Use these to answer "why not X?".</p>
+    </div>
+    <div class="decisions" id="decisionList"></div>
+  </section>
+
+  <section class="block" id="security">
+    <div class="sec-head">
+      <span class="kicker">06 · review</span><h2>Security Q&amp;A</h2>
+      <p>The questions a senior will ask. Open items come before any deploy beyond localhost.</p>
+    </div>
+    <div class="sec-summary" id="secSummary"></div>
+    <div class="sec-list" id="secList"></div>
+  </section>
+
+  <section class="block" id="demo">
+    <div class="sec-head">
+      <span class="kicker">07 · present</span><h2>Demo script for the review</h2>
+      <p>A 15-minute walk. Each button opens the matching trace.</p>
+    </div>
+    <div class="card"><ol class="demo" id="demoList"></ol></div>
+  </section>
+
+  <section class="block" id="learn">
+    <div class="sec-head">
+      <span class="kicker">08 · depth</span><h2>Learn notes</h2>
+      <p>The longer notes in this folder, one per built part.</p>
+    </div>
+    <div class="learn" id="learnList"></div>
+  </section>
+</main>
+
+<footer class="wrap">Code snippets come from commit d851b99. After the code changes, line numbers can drift: regenerate the snippets or check the file.</footer>
+
+<script>
+"use strict";
+
+/* ---------- settings ---------- */
+const DEFAULT_REPO_ROOT = "C:/Users/User/Desktop/nanoscout-private-github/b2-GUI";
+const REPO_KEY = "tourRepoRoot";
+const THEME_KEY = "tourTheme";
+
+function readStore(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function writeStore(key, value) { try { localStorage.setItem(key, value); } catch { /* storage blocked */ } }
+
+let repoRoot = readStore(REPO_KEY) || DEFAULT_REPO_ROOT;
+
+/* ---------- code snippets (generated from git show d851b99:<file>) ---------- */
+/*CODE-START*/
+const CODE = {"web/src/components/FileArea.tsx:30-33":"export default function FileArea() {\n  let area!: HTMLElement;\n  const total = () => (store.listing()?.folders.length ?? 0) + store.folderFiles().length;\n  const shown = () => store.visibleFolders().length + store.visibleFiles().length;","web/src/store.ts:425-425":"export const store = createRoot(() => createStore(http));","web/src/api.ts:11-29":"/**\n * How long a folder listing is reused. The file area, the folder tree and the preview pane each\n * ask for the same folder; without this, opening a split lists it in B2 two or three times.\n * New files show after at most this long, or at once after a page reload.\n */\nconst LIST_TTL_MS = 30_000;\n\n/** One folder level from the backend. Throws an Error with the server's message on failure. */\nasync function fetchListing(prefix: string): Promise<ListResult> {\n  const res = await fetch(`/api/list?prefix=${encodeURIComponent(prefix)}`);\n  if (!res.ok) {\n    const body = await res.json().catch(() => null);\n    throw new Error(body?.error ?? `Request failed (${res.status})`);\n  }\n  return res.json();\n}\n\n/** One folder level, shared by every part of the page for LIST_TTL_MS. */\nexport const listFolder = memoByKey(fetchListing, LIST_TTL_MS);","web/src/index.tsx:23-37":"// Ask the server where browsing starts, open the folder in the page address, then show the app.\ngetRoot()\n  .then((root) => {\n    store.init(root, startPrefix(root.prefix));\n    syncHistory();\n    render(() => <App />, mount);\n  })\n  .catch((err: Error) => {\n    mount.innerHTML = \"\";\n    const p = document.createElement(\"p\");\n    p.className = \"error\";\n    p.style.padding = \"12px\";\n    p.textContent = `Cannot reach the server: ${err.message}`;\n    mount.append(p);\n  });","web/src/history.ts:1-4":"// Folder navigation in the browser's own history: every folder opened in the app is one history\n// entry, with the folder in the address (\"/?path=2026-10-12_.../raw/\"). The browser's back and\n// forward (buttons, mouse side buttons, Alt+Left) then move between folders instead of leaving\n// the site, a reload stays in the same folder, and an address can be shared.","server/src/app.ts:110-116":"export function createApp({ config, b2, images, registry, webDist }: AppDeps): express.Express {\n  const app = express();\n  app.disable(\"x-powered-by\");\n  app.use(requestLog);\n  app.use(securityHeaders);\n  app.use(hostCheck);\n  app.use(\"/api\", authSlot);","server/src/app.ts:118-130":"// Where browsing starts. The browser asks instead of hard-coding it, so B2_RAW_PREFIX\n// (e.g. \"SEM-DATA/yeast\") is configured in one place only.\napp.get(\"/api/root\", (_req, res) => {\n  const name = config.rawPrefix.slice(config.rawPrefix.lastIndexOf(\"/\") + 1);\n  res.json({ prefix: config.rawPrefix + \"/\", name });\n});\n\napp.get(\"/api/list\", async (req, res) => {\n  const prefix = validatePrefix(req.query.prefix, config.rawPrefix);\n  // The B2 listing and the Registry check run side by side; the Registry never fails a listing.\n  const [raw] = await Promise.all([b2.list(prefix), registry?.refresh()]);\n  res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup, registry?.tagsFor));\n});","server/src/keys.ts:3-17":"/** Common rules for keys and prefixes: inside rawPrefix, relative, no \"..\", no backslash. */\nfunction checkPath(value: unknown, rawPrefix: string, what: string): string {\n  if (typeof value !== \"string\" || value === \"\") {\n    throw new HttpError(400, `Missing ${what}`);\n  }\n  if (\n    !value.startsWith(rawPrefix + \"/\") ||\n    value.startsWith(\"/\") ||\n    value.includes(\"\\\\\") ||\n    value.split(\"/\").includes(\"..\")\n  ) {\n    throw new HttpError(400, `Invalid ${what}`);\n  }\n  return value;\n}","server/src/listing.ts:28-40":"/**\n * Turn one level of a raw listing into what the UI shows: hidden folders and non-TIFF files\n * are removed. Batch folders (directly under the root) are sorted newest date first, undated\n * ones last; everything else is sorted by name in natural order. `lookup` adds Registry metadata\n * and `tagsFor` the split tags.\n */\nexport function mapListing(\n  prefix: string,\n  rawPrefix: string,\n  raw: RawListing,\n  lookup: (key: string) => ImageMeta | null = () => null,\n  tagsFor: (split: string) => string[] = () => [],\n): ListResult {","server/src/images.ts:45-57":"/**\n * Thumbnail or preview of one TIFF. Uses the pipeline's ready-made PNGs in raw/.cache/ when\n * they exist (thumbnail served as is, full PNG resized); otherwise converts the TIFF itself.\n * Results are cached on disk by source key, size and ETag.\n */\nexport function createImageRenderer({\n  b2,\n  cache,\n  limit,\n  convert = toJpeg,\n  maxSourceBytes = MAX_SOURCE_BYTES,\n  headTtlMs = HEAD_TTL_MS,\n}: Deps): ImageRenderer {","server/src/registry.ts:249-260":"/**\n * In-memory index of images.csv by B2 key. Each row is indexed under its raw file (`b2_key`) and,\n * when present, its preprocessed variant (`image_key`), so both files show the same metadata.\n * `checkEveryMs` limits how often refresh() asks the source (0 = every call).\n * `tagsSource` (split_tags.csv) is read in the same refresh; its failures never touch the\n * images.csv data or `status().error`.\n */\nexport function createRegistry(\n  source: RegistrySource | null,\n  checkEveryMs = 5000,\n  tagsSource: RegistrySource | null = null,\n): Registry {","server/src/limit.ts:1-20":"export type Limiter = <T>(task: () => Promise<T>) => Promise<T>;\n\n/** Run at most `n` tasks at the same time; the rest wait in order. */\nexport function createLimiter(n: number): Limiter {\n  let active = 0;\n  const waiting: (() => void)[] = [];\n\n  return async <T>(task: () => Promise<T>): Promise<T> => {\n    if (active >= n) {\n      await new Promise<void>((resolve) => waiting.push(resolve));\n    }\n    active++;\n    try {\n      return await task();\n    } finally {\n      active--;\n      waiting.shift()?.();\n    }\n  };\n}","server/src/zip.ts:19-27":"/**\n * Builds the zip as a stream. Entries are stored, not compressed (SEM TIFFs barely compress),\n * so the total size is known up front. B2 objects are opened one at a time, only when the zip\n * reaches them. Any error (B2 failure, a size that differs from the listing) destroys `output`.\n */\nexport function createZip(\n  entries: ZipEntry[],\n  open: (key: string) => Promise<Readable>,\n): { output: Readable; size: Promise<number> } {","server/src/cache.ts:36-40":"/**\n * A folder of cached files. It can be deleted at any time; files are rebuilt on demand.\n * When it holds more than maxBytes, the least recently used files are deleted.\n */\nexport function createDiskCache(dir: string, maxBytes = Infinity): DiskCache {","server/src/b2.ts:1-17":"// Read-only access to the B2 bucket through its S3 API.\n// Only these three read commands are imported: nothing in this app can write, delete, copy or move.\nimport { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, S3Client } from \"@aws-sdk/client-s3\";\nimport type { Readable } from \"node:stream\";\nimport type { Config } from \"./config.js\";\nimport { HttpError } from \"./errors.js\";\nimport { log, sizeText } from \"./log.js\";\nimport type { RawListing } from \"./listing.js\";\n\nexport interface B2 {\n  /** One folder level (Delimiter \"/\"), every page. */\n  list(prefix: string): Promise<RawListing>;\n  /** Object metadata, or null when the object does not exist. */\n  head(key: string): Promise<{ etag: string; size: number } | null>;\n  getBytes(key: string): Promise<Buffer>;\n  getStream(key: string): Promise<{ body: Readable; size: number }>;\n}","server/src/registry.ts:69-74":"/**\n * Reads images.csv through the GitHub contents API (raw media type, files up to 100 MB).\n * Version = the ETag; sending it back as If-None-Match gives a 304 that costs no rate limit.\n * `fetchFn` is replaceable for tests.\n */\nexport function createGitHubSource(file: GitHubFile, fetchFn: typeof fetch = fetch): RegistrySource {","web/src/index.tsx:14-21":"// Script errors the page did not catch also go to the server log, with the page they happened on.\nwindow.addEventListener(\"error\", (e) => {\n  reportClientError(`Script error on ${location.pathname}: ${e.message} (${e.filename}:${e.lineno})`);\n});\nwindow.addEventListener(\"unhandledrejection\", (e) => {\n  const reason = e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason);\n  reportClientError(`Unhandled promise rejection on ${location.pathname}: ${reason}`);\n});","web/src/api.ts:4-9":"/** Where browsing starts (the server's B2_RAW_PREFIX). */\nexport async function getRoot(): Promise<{ prefix: string; name: string }> {\n  const res = await fetch(\"/api/root\");\n  if (!res.ok) throw new Error(`Request failed (${res.status})`);\n  return res.json();\n}","server/src/app.ts:118-123":"// Where browsing starts. The browser asks instead of hard-coding it, so B2_RAW_PREFIX\n// (e.g. \"SEM-DATA/yeast\") is configured in one place only.\napp.get(\"/api/root\", (_req, res) => {\n  const name = config.rawPrefix.slice(config.rawPrefix.lastIndexOf(\"/\") + 1);\n  res.json({ prefix: config.rawPrefix + \"/\", name });\n});","web/src/index.tsx:23-29":"// Ask the server where browsing starts, open the folder in the page address, then show the app.\ngetRoot()\n  .then((root) => {\n    store.init(root, startPrefix(root.prefix));\n    syncHistory();\n    render(() => <App />, mount);\n  })","web/src/store.ts:91-98":"/**\n * Called once at startup with the server's root, and the folder to open first (from the\n * page address); a start outside the root opens the root.\n */\nfunction init(r: Root, start: string = r.prefix) {\n  setRoot(r);\n  setCurrentPrefix(start.startsWith(r.prefix) && start.endsWith(\"/\") ? start : r.prefix);\n}","web/src/store.ts:86-89":"// An empty prefix (before init) means \"nothing to load yet\".\nconst [listing] = createResource(() => currentPrefix() || false, (p) => api.listFolder(p));\n// Asked once per page load; the server re-reads the Registry file by itself when it changes.\nconst [registry] = createResource(() => api.getRegistryStatus());","web/src/history.ts:35-40":"/** Called once after the store is initialised. */\nexport function syncHistory(): void {\n  // A reload keeps history.state, so the depth of earlier entries survives it.\n  const start: Entry = { prefix: store.currentPrefix(), depth: current()?.depth ?? 0 };\n  history.replaceState(start, \"\", urlFor(start.prefix));\n  setDepth(start.depth);","web/src/App.tsx:11-20":"export default function App() {\n  // Ctrl+B (Cmd+B on a Mac) opens or closes the sidebar from anywhere.\n  function onKey(e: KeyboardEvent) {\n    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === \"b\") {\n      e.preventDefault();\n      toggleSidebar();\n    }\n  }\n  onMount(() => window.addEventListener(\"keydown\", onKey));\n  onCleanup(() => window.removeEventListener(\"keydown\", onKey));","web/src/api.ts:11-16":"/**\n * How long a folder listing is reused. The file area, the folder tree and the preview pane each\n * ask for the same folder; without this, opening a split lists it in B2 two or three times.\n * New files show after at most this long, or at once after a page reload.\n */\nconst LIST_TTL_MS = 30_000;","web/src/api.ts:28-29":"/** One folder level, shared by every part of the page for LIST_TTL_MS. */\nexport const listFolder = memoByKey(fetchListing, LIST_TTL_MS);","web/src/components/IconsView.tsx:37-46":"<div\n  class=\"tile\"\n  classList={{ selected: store.isSelected(folder.prefix) }}\n  data-id={folder.prefix}\n  title={folder.name}\n  onClick={(e) => {\n    e.stopPropagation();\n    store.clickItem(folder.prefix, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });\n  }}\n  onDblClick={() => store.navigate(folder.prefix)}","web/src/store.ts:100-109":"/**\n * Open a folder: clears the selection and the search. Back and forward are the browser's\n * own history (see history.ts), so the store keeps no back list.\n */\nfunction navigate(prefix: string) {\n  if (prefix === currentPrefix()) return;\n  setCurrentPrefix(prefix);\n  select(null);\n  setSearch(\"\");\n}","web/src/store.ts:86-87":"// An empty prefix (before init) means \"nothing to load yet\".\nconst [listing] = createResource(() => currentPrefix() || false, (p) => api.listFolder(p));","web/src/components/FileArea.tsx:96-104":"<Switch>\n  <Match when={store.listing.error}>\n    <p class=\"error\">Could not load this folder: {(store.listing.error as Error).message}<\/p>\n  <\/Match>\n  <Match when={store.listing.loading}>\n    <Show when={store.view() === \"icons\"} fallback={<p class=\"loading\">Loading…<\/p>}>\n      <Skeleton />\n    <\/Show>\n  <\/Match>","web/src/history.ts:50-60":"// A folder opened in the app: add an entry for it.\ncreateRoot(() =>\n  createEffect(() => {\n    const prefix = store.currentPrefix();\n    const here = current();\n    if (here?.prefix === prefix) return;\n    const next: Entry = { prefix, depth: (here?.depth ?? 0) + 1 };\n    history.pushState(next, \"\", urlFor(prefix));\n    setDepth(next.depth);\n  }),\n);","web/src/lib/memo.ts:14-32":"export function memoByKey<T>(\n  load: (key: string) => Promise<T>,\n  ttlMs: number,\n  now: () => number = Date.now,\n): (key: string) => Promise<T> {\n  const entries = new Map<string, { value: Promise<T>; expires: number }>();\n\n  return (key) => {\n    const entry = entries.get(key);\n    if (entry && entry.expires > now()) return entry.value;\n    const value = load(key);\n    entries.set(key, { value, expires: now() + ttlMs });\n    value.catch(() => {\n      // Only forget this attempt, not a newer one started after it.\n      if (entries.get(key)?.value === value) entries.delete(key);\n    });\n    return value;\n  };\n}","web/src/api.ts:18-26":"/** One folder level from the backend. Throws an Error with the server's message on failure. */\nasync function fetchListing(prefix: string): Promise<ListResult> {\n  const res = await fetch(`/api/list?prefix=${encodeURIComponent(prefix)}`);\n  if (!res.ok) {\n    const body = await res.json().catch(() => null);\n    throw new Error(body?.error ?? `Request failed (${res.status})`);\n  }\n  return res.json();\n}","server/src/app.ts:125-126":"app.get(\"/api/list\", async (req, res) => {\n  const prefix = validatePrefix(req.query.prefix, config.rawPrefix);","server/src/app.ts:127-130":"  // The B2 listing and the Registry check run side by side; the Registry never fails a listing.\n  const [raw] = await Promise.all([b2.list(prefix), registry?.refresh()]);\n  res.json(mapListing(prefix, config.rawPrefix, raw, registry?.lookup, registry?.tagsFor));\n});","server/src/b2.ts:68-84":"async list(prefix) {\n  const result: RawListing = { prefixes: [], objects: [] };\n  let token: string | undefined;\n  const start = Date.now();\n  let pages = 0;\n  try {\n    do {\n      const page = await sendWithTimeout(\n        new ListObjectsV2Command({ Bucket, Prefix: prefix, Delimiter: \"/\", ContinuationToken: token }),\n      );\n      for (const p of page.CommonPrefixes ?? []) if (p.Prefix) result.prefixes.push(p.Prefix);\n      for (const o of page.Contents ?? []) {\n        if (o.Key) result.objects.push({ key: o.Key, size: o.Size ?? 0, lastModified: o.LastModified ?? new Date(0) });\n      }\n      token = page.IsTruncated ? page.NextContinuationToken : undefined;\n      pages++;\n    } while (token);","server/src/registry.ts:326-336":"async refresh() {\n  if (!source && !tagsSource) return;\n  if (inFlight) return inFlight;\n  if (Date.now() - lastCheck < checkEveryMs) return;\n  lastCheck = Date.now();\n  // Each load catches its own errors, so one file never blocks the other.\n  inFlight = Promise.all([source && reload(source), tagsSource && reloadTags(tagsSource)])\n    .then(() => undefined)\n    .finally(() => (inFlight = null));\n  return inFlight;\n},","server/src/listing.ts:60-73":"const files: FileEntry[] = raw.objects\n  .filter((o) => o.key !== prefix && isTiff(o.key))\n  .map((o) => ({\n    name: o.key.slice(prefix.length),\n    key: o.key,\n    size: o.size,\n    uploaded: o.lastModified.toISOString(),\n    date: batchDate(o.key, rawPrefix),\n    meta: lookup(o.key),\n    tags: tagsFor(batchName(o.key, rawPrefix)),\n  }))\n  .sort((a, b) => compareNames(a.name, b.name));\n\nreturn { folders, files };","web/src/store.ts:193-208":"const visibleFolders = createMemo<FolderEntry[]>(() => {\n  const shown = listedFolders().filter((f) => matchesSearch(f.name, search()) && (!atRoot() || passesBatchFilters(f)));\n  return userSorted() ? sortFolders(shown, sortColumn(), sortDir()) : shown;\n});\n\nconst folderFiles = createMemo<FileEntry[]>(() => (listing.error ? [] : (listing()?.files ?? [])));\n\n/** Where the Field filter choices come from: every split's images at the top level, else this folder's files. */\nconst filterFiles = createMemo<FileEntry[]>(() =>\n  atRoot() ? Object.values(splitFiles()).flatMap((groups) => groups.map((g) => g.file)) : folderFiles(),\n);\n\nconst visibleFiles = createMemo<FileEntry[]>(() => {\n  const shown = folderFiles().filter((f) => matchesSearch(f.name, search()) && matchesFilters(f, filters()));\n  return sortFiles(shown, sortColumn(), sortDir());\n});","web/src/components/IconsView.tsx:60-83":"<For each={store.pageFiles()}>\n  {(file) => (\n    <div\n      class=\"tile\"\n      classList={{ selected: store.isSelected(file.key) }}\n      data-id={file.key}\n      title={file.name}\n      onClick={(e) => {\n        e.stopPropagation();\n        store.clickItem(file.key, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });\n      }}\n      onDblClick={() => store.openViewer(file.key)}\n    >\n      <div class=\"frame\">\n        <img\n          src={thumbUrl(file.key, file.uploaded)}\n          alt=\"\"\n          loading=\"lazy\"\n          decoding=\"async\"\n          onError={(e) => {\n            e.currentTarget.parentElement?.classList.add(\"failed\");\n            reportClientError(`Thumbnail failed to load: ${file.key}`);\n          }}\n        />","web/src/components/IconsView.tsx:67-71":"onClick={(e) => {\n  e.stopPropagation();\n  store.clickItem(file.key, { toggle: e.ctrlKey || e.metaKey, range: e.shiftKey });\n}}\nonDblClick={() => store.openViewer(file.key)}","web/src/store.ts:325-330":"/** A click on an item, with whether Ctrl (or Cmd) and Shift were held. */\nfunction clickItem(id: string, keys: { toggle: boolean; range: boolean }) {\n  if (keys.range) selectRange(id, keys.toggle);\n  else if (keys.toggle) toggleSelect(id);\n  else select(id);\n}","web/src/store.ts:289-295":"/** Select one item (folder prefix or file key) and nothing else; null clears the selection. */\nfunction select(id: string | null) {\n  setSelectedIds(new Set(id === null ? [] : [id]));\n  setAnchorId(id);\n  setFocusId(id);\n  if (id !== null) showPageOf(id);\n}","web/src/store.ts:274-282":"/** The selected item when exactly one is selected (and visible); null for none or several. */\nconst selected = createMemo<Selection | null>(\n  () => {\n    const items = selection();\n    return items.length === 1 ? items[0] : null;\n  },\n  null,\n  { equals: (a, b) => a?.entry === b?.entry },\n);","web/src/components/PreviewPane.tsx:182-189":"<Switch>\n  <Match when={store.selection().length > 1}>\n    <MultiPreview />\n  <\/Match>\n  {/* keyed: a new selected file rebuilds the preview, so the old picture never lingers. */}\n  <Match when={selectedFile()} keyed>\n    {(file) => <FilePreview file={file} />}\n  <\/Match>","web/src/components/PreviewPane.tsx:85-103":"<div class=\"preview-frame\">\n  <Show when={!failed()} fallback={<span class=\"no-preview\">No preview. The original can still be downloaded.<\/span>}>\n    <Show when={!loaded()}>\n      <img src={thumbUrl(props.file.key, props.file.uploaded)} alt=\"\" />\n    <\/Show>\n    <img\n      classList={{ loading: !loaded() }}\n      src={previewUrl(props.file.key, props.file.uploaded)}\n      alt={props.file.name}\n      onLoad={() => setLoaded(true)}\n      onError={() => {\n        setFailed(true);\n        reportClientError(`Preview failed to load: ${props.file.key}`);\n      }}\n    />\n    <Show when={!loaded()}>\n      <PreparingBadge size={props.file.size} />\n    <\/Show>\n  <\/Show>","web/src/api.ts:73-82":"/**\n * Image URLs carry the file's upload time (`v`), so a file replaced in B2 gets a new URL and the\n * browser does not reuse its cached copy of the old image. The server ignores `v`.\n */\nconst imageUrl = (route: string) => (key: string, uploaded: string) =>\n  `${keyUrl(route)(key)}&v=${encodeURIComponent(uploaded)}`;\n\nexport const thumbUrl = imageUrl(\"thumb\");\nexport const previewUrl = imageUrl(\"preview\");\nexport const downloadUrl = keyUrl(\"download\");","server/src/app.ts:213-221":"if (images) {\n  const sendImage = (size: ImageSize) => async (req: Request, res: Response) => {\n    const key = validateKey(req.query.key, config.rawPrefix);\n    const image = await images(key, size);\n    res.set(\"Cache-Control\", IMAGE_CACHE_CONTROL).type(image.contentType).send(image.body);\n  };\n  app.get(\"/api/thumb\", sendImage(\"thumb\"));\n  app.get(\"/api/preview\", sendImage(\"preview\"));\n}","server/src/images.ts:85-102":"return async (key, size) => {\n  let sourceKey = key;\n  let meta: Head = null;\n  let passthrough = false;\n\n  const sources = cacheSources(key);\n  if (sources) {\n    const candidate = size === \"thumb\" ? sources.thumb : sources.png;\n    meta = await head(candidate);\n    if (meta) {\n      sourceKey = candidate;\n      passthrough = size === \"thumb\";\n    }\n  }\n  if (!meta) {\n    meta = await head(key);\n    if (!meta) throw new HttpError(404, \"Not found\");\n  }","server/src/images.ts:104-110":"const contentType = passthrough ? \"image/png\" : \"image/jpeg\";\nconst name = cacheName(sourceKey, size, meta.etag, passthrough ? \"png\" : \"jpg\");\nconst cached = await cache.get(name);\nif (cached) {\n  log.debug(`${size} ${key}: disk cache hit (${sizeText(cached.length)})`);\n  return { body: cached, contentType };\n}","server/src/cache.ts:14-17":"/** File name for one rendered image. A new ETag (changed object) gives a new name, so stale files are never served. */\nexport function cacheName(key: string, size: \"thumb\" | \"preview\", etag: string, ext: \"jpg\" | \"png\"): string {\n  return createHash(\"sha256\").update(`${key}|${size}|${etag}`).digest(\"hex\") + \".\" + ext;\n}","server/src/images.ts:112-124":"if (meta.size > maxSourceBytes) {\n  log.warn(`${size} ${key}: source ${sizeText(meta.size)} is above the ${sizeText(maxSourceBytes)} limit, no preview`);\n  throw new HttpError(422, \"Image too large to preview\");\n}\n\nlet pending = inFlight.get(name);\nif (pending) {\n  log.debug(`${size} ${key}: same render already running, waiting for it`);\n} else {\n  pending = render(sourceKey, size, passthrough, name, meta.size).finally(() => inFlight.delete(name));\n  inFlight.set(name, pending);\n}\nreturn { body: await pending, contentType };","server/src/images.ts:137-148":"// Download and conversion both hold the whole image in memory, so both are limited.\nconst body = await limit(async () => {\n  started = Date.now();\n  const bytes = await b2.getBytes(sourceKey);\n  downloaded = Date.now();\n  if (passthrough) return bytes;\n  try {\n    return await convert(bytes, MAX_SIDE[size]);\n  } catch (err) {\n    throw new HttpError(500, \"Cannot convert this image\", { cause: err });\n  }\n});","server/src/limit.ts:3-20":"/** Run at most `n` tasks at the same time; the rest wait in order. */\nexport function createLimiter(n: number): Limiter {\n  let active = 0;\n  const waiting: (() => void)[] = [];\n\n  return async <T>(task: () => Promise<T>): Promise<T> => {\n    if (active >= n) {\n      await new Promise<void>((resolve) => waiting.push(resolve));\n    }\n    active++;\n    try {\n      return await task();\n    } finally {\n      active--;\n      waiting.shift()?.();\n    }\n  };\n}","server/src/convert.ts:3-15":"/**\n * TIFF (or PNG) to a browser-friendly JPEG whose long side is at most `maxSide`.\n * `normalise()` stretches contrast to the full range: SEM images are often 16-bit with values\n * in a narrow band, which would look almost black when simply cut down to 8 bits.\n */\nexport async function toJpeg(input: Buffer, maxSide: number): Promise<Buffer> {\n  return sharp(input, { pages: 1 })\n    .normalise()\n    .resize(maxSide, maxSide, { fit: \"inside\", withoutEnlargement: true })\n    .toColourspace(\"srgb\")\n    .jpeg({ quality: 82 })\n    .toBuffer();\n}","server/src/cache.ts:81-94":"async put(name, data) {\n  await ready;\n  // Write to a temporary file first, then rename: a reader never sees a half-written file.\n  const tmp = path.join(dir, `${name}.${randomUUID()}.tmp`);\n  await writeFile(tmp, data);\n  await rename(tmp, path.join(dir, name));\n\n  if (totalBytes !== null) totalBytes += data.length;\n  if (maxBytes === Infinity || trimming || (totalBytes !== null && totalBytes <= maxBytes)) return;\n  trimming = trim().finally(() => {\n    trimming = null;\n  });\n  await trimming;\n},","web/src/components/PreparingBadge.tsx:14-24":"export default function PreparingBadge(props: { size: number }) {\n  const start = Date.now();\n  const [elapsed, setElapsed] = createSignal(0);\n  const timers = [\n    setTimeout(() => setElapsed(Date.now() - start), SHOW_AFTER_MS),\n    setInterval(() => setElapsed(Date.now() - start), TICK_MS),\n  ];\n  onCleanup(() => {\n    clearTimeout(timers[0]);\n    clearInterval(timers[1]);\n  });","web/src/components/FileArea.tsx:47-66":"function onKey(e: KeyboardEvent) {\n  if (store.viewer() || e.defaultPrevented || e.altKey) return;\n  const target = e.target instanceof Element ? e.target : document.body;\n  if (target.closest(\"input, select, textarea, [contenteditable], .popover-panel\")) return;\n\n  if (e.ctrlKey || e.metaKey) {\n    if (e.key.toLowerCase() === \"a\" && !e.shiftKey) {\n      e.preventDefault();\n      store.selectAll();\n    }\n    return;\n  }\n\n  const selected = store.selected();\n  if (e.key === \"Enter\" || e.key === \" \") {\n    // A focused button or link handles its own Enter and Space.\n    if (!selected || target.closest(\"button, a\")) return;\n    e.preventDefault();\n    open(selected);\n    return;","web/src/store.ts:343-358":"/** The viewer's file and position among the visible files; null when closed or the file is hidden. */\nconst viewer = createMemo<ViewerState | null>(() => {\n  const key = viewerKey();\n  if (key === null) return null;\n  const files = visibleFiles();\n  const index = files.findIndex((f) => f.key === key);\n  if (index < 0) return null;\n  return { file: files[index], index, count: files.length, at: (delta) => files[index + delta] };\n});\n\n/** Full-screen viewer on one visible file; the file also becomes the selection. */\nfunction openViewer(key: string) {\n  if (!visibleFiles().some((f) => f.key === key)) return;\n  select(key);\n  setViewerKey(key);\n}","web/src/App.tsx:41-43":"<Show when={store.viewer()?.file.key} keyed>\n  {(key) => <Viewer fileKey={key} />}\n<\/Show>","web/src/components/Viewer.tsx:34-40":"onMount(() => {\n  const measure = () => setBox({ w: stage.clientWidth, h: stage.clientHeight });\n  measure();\n  const observer = new ResizeObserver(measure);\n  observer.observe(stage);\n  onCleanup(() => observer.disconnect());\n});","web/src/components/Viewer.tsx:79-87":"function onKey(e: KeyboardEvent) {\n  if (e.key === \"Escape\") store.closeViewer();\n  else if (e.key === \"ArrowRight\") store.stepViewer(1);\n  else if (e.key === \"ArrowLeft\") store.stepViewer(-1);\n  else return;\n  e.preventDefault();\n}\nonMount(() => window.addEventListener(\"keydown\", onKey));\nonCleanup(() => window.removeEventListener(\"keydown\", onKey));","web/src/components/FileArea.tsx:47-50":"function onKey(e: KeyboardEvent) {\n  if (store.viewer() || e.defaultPrevented || e.altKey) return;\n  const target = e.target instanceof Element ? e.target : document.body;\n  if (target.closest(\"input, select, textarea, [contenteditable], .popover-panel\")) return;","web/src/store.ts:360-364":"/** Next (+1) or previous (-1) visible file; stops at the first and the last. */\nfunction stepViewer(delta: number) {\n  const next = viewer()?.at(delta);\n  if (next) openViewer(next.key);\n}","web/src/components/Viewer.tsx:63-69":"// Ask for the neighbours' previews now, so stepping finds them in the browser cache.\ncreateEffect(() => {\n  for (const delta of PREFETCH) {\n    const neighbour = view()?.at(delta);\n    if (neighbour) new Image().src = previewUrl(neighbour.key, neighbour.uploaded);\n  }\n});","web/src/components/Viewer.tsx:89-101":"/** Zoom so that the image point under the cursor stays under the cursor. */\nfunction onWheel(e: WheelEvent) {\n  e.preventDefault();\n  const rect = stage.getBoundingClientRect();\n  const cx = e.clientX - rect.left;\n  const cy = e.clientY - rect.top;\n  const old = scale();\n  const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, old * (e.deltaY < 0 ? 1.2 : 1 / 1.2)));\n  if (next === MIN_SCALE) return reset();\n  const o = offset();\n  setOffset({ x: cx - ((cx - o.x) * next) / old, y: cy - ((cy - o.y) * next) / old });\n  setScale(next);\n}","web/src/store.ts:372-372":"closeViewer: () => setViewerKey(null),","web/src/history.ts:30-33":"/** The toolbar's back button does what the browser's back button does. */\nexport function goBack(): void {\n  history.back();\n}","web/src/history.ts:42-48":"// Browser back or forward: open that entry's folder (the effect below then sees no change).\nwindow.addEventListener(\"popstate\", () => {\n  const entry = current();\n  if (!entry) return;\n  setDepth(entry.depth);\n  store.navigate(entry.prefix);\n});","web/src/history.ts:25-28":"const [depth, setDepth] = createSignal(0);\n\n/** True when the browser has an earlier folder of this app to go back to. */\nexport const canGoBack = () => depth() > 0;","web/src/history.ts:13-23":"/** Address for a folder: \"?path=<folder below the root>\", or the bare page for the root. */\nfunction urlFor(prefix: string): string {\n  const below = prefix.slice(store.root().prefix.length);\n  if (!below) return location.pathname;\n  return \"?path=\" + below.split(\"/\").map(encodeURIComponent).join(\"/\");\n}\n\n/** The folder in the page address when the page loads (the store falls back to the root if it is invalid). */\nexport function startPrefix(rootPrefix: string): string {\n  return rootPrefix + (new URLSearchParams(location.search).get(\"path\") ?? \"\");\n}","web/src/components/PreviewPane.tsx:125-130":"/** Two or more items selected: their count and size, and one zip download for the images. */\nfunction MultiPreview() {\n  const files = () => store.selectedFiles();\n  const folders = () => store.selection().length - files().length;\n  const bytes = () => files().reduce((total, f) => total + f.size, 0);\n  const tooMany = () => files().length > MAX_ZIP_FILES;","web/src/components/PreviewPane.tsx:182-185":"<Switch>\n  <Match when={store.selection().length > 1}>\n    <MultiPreview />\n  <\/Match>","web/src/api.ts:87-108":"/**\n * Downloads several files of one folder as one zip. A hidden form posts the keys into a hidden\n * frame, so the page stays put and the browser's own download manager streams the zip to disk.\n */\nexport function downloadZip(keys: string[]): void {\n  const frame = document.createElement(\"iframe\");\n  frame.name = `zip-download-${Date.now()}`;\n  frame.hidden = true;\n  const form = document.createElement(\"form\");\n  form.method = \"post\";\n  form.action = \"/api/download-zip\";\n  form.target = frame.name;\n  form.hidden = true;\n  for (const key of keys) {\n    const input = document.createElement(\"input\");\n    input.type = \"hidden\";\n    input.name = \"key\";\n    input.value = key;\n    form.append(input);\n  }\n  document.body.append(frame, form);\n  form.submit();","server/src/app.ts:165-176":"// Several originals of one folder as one zip. A form POST (not fetch), so the browser's own\n// download manager saves the stream; the key list is too long for a URL.\napp.post(\n  \"/api/download-zip\",\n  express.urlencoded({ extended: false, limit: \"512kb\", parameterLimit: MAX_ZIP_FILES + 10 }),\n  async (req, res) => {\n    // Another website could post this form too; browsers mark such requests as cross-site.\n    const site = req.get(\"Sec-Fetch-Site\");\n    if (site && site !== \"same-origin\") {\n      log.warn(`Refused zip download posted from another site (Sec-Fetch-Site: ${site})`);\n      throw new HttpError(403, \"Cross-site request refused\");\n    }","server/src/app.ts:178-185":"const raw: unknown = req.body?.key;\nconst values = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];\nif (values.length === 0) throw new HttpError(400, \"Missing key\");\nif (values.length > MAX_ZIP_FILES) throw new HttpError(400, `At most ${MAX_ZIP_FILES} files per download`);\nconst keys = [...new Set(values.map((v) => validateKey(v, config.rawPrefix)))];\nconst parent = (key: string) => key.slice(0, key.lastIndexOf(\"/\") + 1);\nconst folder = parent(keys[0]);\nif (keys.some((k) => parent(k) !== folder)) throw new HttpError(400, \"All files must be in one folder\");","server/src/app.ts:187-194":"// One listing gives every size (so Content-Length is exact) and finds missing files before\n// any byte is sent, while an error page is still possible.\nconst objects = new Map((await b2.list(folder)).objects.map((o) => [o.key, o]));\nconst entries = keys.map((key) => {\n  const object = objects.get(key);\n  if (!object) throw new HttpError(404, \"Not found\");\n  return { key, name: key.slice(folder.length), size: object.size, mtime: object.lastModified };\n});","server/src/zip.ts:24-47":"export function createZip(\n  entries: ZipEntry[],\n  open: (key: string) => Promise<Readable>,\n): { output: Readable; size: Promise<number> } {\n  const zip = new yazl.ZipFile();\n  const output = zip.outputStream as Readable;\n  // The B2 stream being read now; closed with the output (e.g. the browser cancels the download).\n  let current: Readable | null = null;\n  zip.on(\"error\", (err) => output.destroy(err));\n  output.on(\"close\", () => current?.destroy());\n\n  for (const entry of entries) {\n    zip.addReadStreamLazy(entry.name, { compress: false, size: entry.size, mtime: entry.mtime }, (cb) => {\n      open(entry.key).then(\n        (stream) => {\n          current = stream;\n          // pipe() does not forward source errors, so a broken B2 stream must fail the zip itself.\n          stream.on(\"error\", (err) => zip.emit(\"error\", err));\n          cb(null, stream);\n        },\n        (err) => cb(err, undefined as unknown as Readable),\n      );\n    });\n  }","server/src/app.ts:196-209":"const { output, size } = createZip(entries, async (key) => (await b2.getStream(key)).body);\nres.attachment(zipName(folder));\nconst total = await size;\nif (total >= 0) res.set(\"Content-Length\", String(total));\nconst start = Date.now();\nlog.info(`Zip ${folder}: ${keys.length} files, ${sizeText(Math.max(total, 0))}, started`);\ntry {\n  await pipeline(output, res);\n  log.info(`Zip ${folder}: finished in ${secondsSince(start)} s`);\n} catch (err) {\n  if (cancelledByBrowser(err)) log.info(`Zip ${folder} cancelled by the browser after ${secondsSince(start)} s`);\n  else log.error(`Zip download of ${keys.length} files from ${folder} failed after ${secondsSince(start)} s`, err);\n  res.destroy();\n}","web/src/api.ts:109-113":"  form.remove();\n  // Removing the frame before the server answers would cancel the download; by now it has\n  // been handed to the browser's download manager.\n  setTimeout(() => frame.remove(), 5 * 60_000);\n}","server/src/app.ts:36-55":"/**\n * Gives each request an id that every log line written for it carries (B2 calls, renders), and\n * logs one line when it ends: method, path, status, time, size. API requests are INFO; the\n * website's own files (JS, CSS, fonts) only at DEBUG. A response the browser broke off is marked.\n */\nfunction requestLog(req: Request, res: Response, next: NextFunction): void {\n  const start = Date.now();\n  const id = randomBytes(REQUEST_ID_BYTES).toString(\"hex\");\n  withRequestId(id, () => {\n    res.on(\"close\", () => {\n      const length = Number(res.getHeader(\"Content-Length\"));\n      const size = Number.isFinite(length) ? sizeText(length) : \"-\";\n      const cut = res.writableFinished ? \"\" : \" (cancelled by the browser)\";\n      const line = `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start} ms ${size}${cut}`;\n      if (req.originalUrl.startsWith(\"/api/\")) log.info(line);\n      else log.debug(line);\n    });\n    next();\n  });\n}","server/src/log.ts:43-45":"export function withRequestId<T>(id: string, fn: () => T): T {\n  return requestContext.run(id, fn);\n}","server/src/log.ts:69-72":"function write(level: LogLevel, message: string): void {\n  if (LEVEL_ORDER[level] < LEVEL_ORDER[options.level]) return;\n  options.write(formatLine(new Date(), level, requestContext.getStore() ?? null, message), level);\n}","server/src/b2.ts:41-46":"/** Missing object: 404. Anything else (network, credentials, B2 outage): 502 with a short message. */\nfunction toHttpError(err: unknown): HttpError {\n  if (err instanceof HttpError) return err;\n  if (isNotFound(err)) return new HttpError(404, \"Not found\", { cause: err });\n  return new HttpError(502, \"B2 unavailable\", { cause: err });\n}","server/src/app.ts:250-260":"// Express 5 sends errors thrown in async handlers here. The client gets a short message;\n// the full error (with its cause) goes to the server log only.\napp.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {\n  if (err instanceof HttpError) {\n    if (err.status >= 500) log.error(`${err.status} ${err.message}`, err.cause ?? err);\n    res.status(err.status).json({ error: err.message });\n    return;\n  }\n  log.error(\"500 Internal error\", err);\n  res.status(500).json({ error: \"Internal error\" });\n});","web/src/components/FileArea.tsx:96-99":"<Switch>\n  <Match when={store.listing.error}>\n    <p class=\"error\">Could not load this folder: {(store.listing.error as Error).message}<\/p>\n  <\/Match>","web/src/api.ts:46-62":"// Messages already sent from this page: each error is reported once, not on every repeat.\nconst reportedErrors = new Set<string>();\n\n/**\n * Sends an error the user saw (an image that failed, an uncaught script error) to the server log.\n * Each message once per page; failures to report are ignored (the page must keep working).\n */\nexport function reportClientError(message: string): void {\n  if (reportedErrors.has(message)) return;\n  reportedErrors.add(message);\n  fetch(\"/api/client-error\", {\n    method: \"POST\",\n    headers: { \"Content-Type\": \"application/json\" },\n    body: JSON.stringify({ message }),\n    keepalive: true,\n  }).catch(() => {});\n}","server/src/app.ts:223-240":"// Errors the browser saw (an image that failed to load, an uncaught script error), so they show\n// up in the server log too. Same site only, small bodies, and at most 60 a minute.\nlet clientErrorWindowStart = 0;\nlet clientErrorsInWindow = 0;\napp.post(\"/api/client-error\", express.json({ limit: \"2kb\" }), (req, res) => {\n  const site = req.get(\"Sec-Fetch-Site\");\n  if (site && site !== \"same-origin\") throw new HttpError(403, \"Cross-site request refused\");\n  const message: unknown = req.body?.message;\n  if (typeof message !== \"string\" || message.trim() === \"\") throw new HttpError(400, \"Missing message\");\n  if (Date.now() - clientErrorWindowStart >= MINUTE_MS) {\n    clientErrorWindowStart = Date.now();\n    clientErrorsInWindow = 0;\n  }\n  clientErrorsInWindow++;\n  if (clientErrorsInWindow > MAX_CLIENT_ERRORS_PER_MINUTE) throw new HttpError(429, \"Too many error reports\");\n  log.warn(`Browser: ${message.slice(0, MAX_CLIENT_ERROR_LENGTH)}`);\n  res.status(204).end();\n});","web/src/store.ts:61-61":"const [currentPrefix, setCurrentPrefix] = createSignal(\"\");","web/src/store.ts:205-208":"const visibleFiles = createMemo<FileEntry[]>(() => {\n  const shown = folderFiles().filter((f) => matchesSearch(f.name, search()) && matchesFilters(f, filters()));\n  return sortFiles(shown, sortColumn(), sortDir());\n});","web/src/store.ts:87-87":"const [listing] = createResource(() => currentPrefix() || false, (p) => api.listFolder(p));","web/src/App.tsx:19-20":"onMount(() => window.addEventListener(\"keydown\", onKey));\nonCleanup(() => window.removeEventListener(\"keydown\", onKey));","web/src/store.ts:144-144":"const listedFolders = createMemo<FolderEntry[]>(() => (listing.error ? [] : (listing()?.folders ?? [])));","web/src/store.ts:198-198":"const folderFiles = createMemo<FileEntry[]>(() => (listing.error ? [] : (listing()?.files ?? [])));","web/src/store.ts:193-196":"const visibleFolders = createMemo<FolderEntry[]>(() => {\n  const shown = listedFolders().filter((f) => matchesSearch(f.name, search()) && (!atRoot() || passesBatchFilters(f)));\n  return userSorted() ? sortFolders(shown, sortColumn(), sortDir()) : shown;\n});","web/src/store.ts:221-221":"const visibleIds = createMemo(() => [...visibleFolders().map((f) => f.prefix), ...visibleFiles().map((f) => f.key)]);","web/src/store.ts:230-234":"const page = createMemo(() => {\n  const state = pageState();\n  const wanted = state.ids === visibleIds() ? state.page : 0;\n  return Math.min(Math.max(wanted, 0), pageCount() - 1);\n});","web/src/store.ts:247-247":"const pageFolders = createMemo(() => visibleFolders().slice(page() * pageSize, (page() + 1) * pageSize));","web/src/store.ts:250-255":"const pageFiles = createMemo(() => {\n  const folderCount = visibleFolders().length;\n  const start = Math.max(0, page() * pageSize - folderCount);\n  const end = Math.max(0, (page() + 1) * pageSize - folderCount);\n  return visibleFiles().slice(start, end);\n});","web/src/components/IconsView.tsx:32-35":"export default function IconsView() {\n  return (\n    <div class=\"icons\">\n      <For each={store.pageFolders()}>","web/src/store.ts:60-60":"const [root, setRoot] = createSignal<Root>({ prefix: \"\", name: \"\" });","web/src/store.ts:150-150":"const [splitGroups] = createResource(() => root().prefix || false, () => api.getSplitGroups());","web/src/store.ts:156-166":"const splitFiles = createMemo<Record<string, { file: FileEntry; count: number }[]>>(() => {\n  const data = splitGroups.error ? undefined : splitGroups();\n  const bySplit: Record<string, { file: FileEntry; count: number }[]> = {};\n  for (const [split, groups] of Object.entries(data ?? {})) {\n    bySplit[split] = groups.map(({ meta, count }) => ({\n      file: { name: \"\", key: \"\", size: 0, uploaded: \"\", date: null, meta, tags: [] },\n      count,\n    }));\n  }\n  return bySplit;\n});","web/src/store.ts:172-181":"function splitMatch(split: string): SplitMatch | null {\n  if (fieldFilterCount(filters()) === 0 || splitGroups.error || !splitGroups()) return null;\n  let matched = 0;\n  let total = 0;\n  for (const group of splitFiles()[split] ?? []) {\n    total += group.count;\n    if (matchesFilters(group.file, filters())) matched += group.count;\n  }\n  return { matched, total };\n}","web/src/store.ts:184-191":"function passesBatchFilters(folder: FolderEntry): boolean {\n  const match = splitMatch(folder.name);\n  return (\n    inDateRange(folder.date, dateFrom(), dateTo()) &&\n    hasTag(folder.tags, tagFilter()) &&\n    (match === null || match.matched > 0)\n  );\n}","web/src/components/FolderTree.tsx:22-26":"const visibleChildren = () => {\n  const folders = children.error ? [] : (children()?.folders ?? []);\n  if (!isRoot) return folders;\n  return folders.filter(store.passesBatchFilters);\n};","web/src/store.ts:63-63":"const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set());","web/src/store.ts:261-272":"const selection = createMemo<Selection[]>(() => {\n  const ids = selectedIds();\n  if (ids.size === 0) return [];\n  return [\n    ...visibleFolders()\n      .filter((f) => ids.has(f.prefix))\n      .map((entry) => ({ kind: \"folder\" as const, entry })),\n    ...visibleFiles()\n      .filter((f) => ids.has(f.key))\n      .map((entry) => ({ kind: \"file\" as const, entry })),\n  ];\n});","web/src/store.ts:275-282":"const selected = createMemo<Selection | null>(\n  () => {\n    const items = selection();\n    return items.length === 1 ? items[0] : null;\n  },\n  null,\n  { equals: (a, b) => a?.entry === b?.entry },\n);","web/src/store.ts:285-287":"const selectedFiles = createMemo<FileEntry[]>(() =>\n  selection().flatMap((s) => (s.kind === \"file\" ? [s.entry] : [])),\n);","web/src/components/PreviewPane.tsx:163-175":"export default function PreviewPane() {\n  const selectedFolder = () => {\n    const s = store.selected();\n    return s?.kind === \"folder\" ? s.entry.prefix : false;\n  };\n  const selectedFolderTags = () => {\n    const s = store.selected();\n    return s?.kind === \"folder\" ? s.entry.tags : [];\n  };\n  const selectedFile = () => {\n    const s = store.selected();\n    return s?.kind === \"file\" ? s.entry : undefined;\n  };","web/src/store.ts:82-82":"const [viewerKey, setViewerKey] = createSignal<string | null>(null);","web/src/store.ts:344-351":"const viewer = createMemo<ViewerState | null>(() => {\n  const key = viewerKey();\n  if (key === null) return null;\n  const files = visibleFiles();\n  const index = files.findIndex((f) => f.key === key);\n  if (index < 0) return null;\n  return { file: files[index], index, count: files.length, at: (delta) => files[index + delta] };\n});","web/src/components/Viewer.tsx:23-23":"export default function Viewer(props: { fileKey: string }) {","web/src/history.ts:13-18":"/** Address for a folder: \"?path=<folder below the root>\", or the bare page for the root. */\nfunction urlFor(prefix: string): string {\n  const below = prefix.slice(store.root().prefix.length);\n  if (!below) return location.pathname;\n  return \"?path=\" + below.split(\"/\").map(encodeURIComponent).join(\"/\");\n}","web/src/index.tsx:15-17":"window.addEventListener(\"error\", (e) => {\n  reportClientError(`Script error on ${location.pathname}: ${e.message} (${e.filename}:${e.lineno})`);\n});","web/src/index.tsx:18-21":"window.addEventListener(\"unhandledrejection\", (e) => {\n  const reason = e.reason instanceof Error ? `${e.reason.name}: ${e.reason.message}` : String(e.reason);\n  reportClientError(`Unhandled promise rejection on ${location.pathname}: ${reason}`);\n});","web/src/components/FileArea.tsx:85-86":"onMount(() => window.addEventListener(\"keydown\", onKey));\nonCleanup(() => window.removeEventListener(\"keydown\", onKey));","web/src/components/Viewer.tsx:86-87":"onMount(() => window.addEventListener(\"keydown\", onKey));\nonCleanup(() => window.removeEventListener(\"keydown\", onKey));","web/src/components/Popover.tsx:17-24":"onMount(() => {\n  document.addEventListener(\"pointerdown\", onPointerDown);\n  document.addEventListener(\"keydown\", onKey);\n});\nonCleanup(() => {\n  document.removeEventListener(\"pointerdown\", onPointerDown);\n  document.removeEventListener(\"keydown\", onKey);\n});","web/src/components/Viewer.tsx:52-61":"createEffect(\n  on(\n    () => props.fileKey,\n    () => {\n      reset();\n      setFailed(false);\n      setLoaded(false);\n    },\n  ),\n);","web/src/components/FolderTree.tsx:16-20":"// Opening a folder from the file area expands its ancestors, like Explorer.\ncreateEffect(() => {\n  const current = store.currentPrefix();\n  if (current !== props.prefix && current.startsWith(props.prefix)) setExpanded(true);\n});","web/src/components/DetailsView.tsx:67-67":"ref={(el) => createEffect(() => (el.indeterminate = count() > 0 && !all()))}","web/src/store.ts:89-89":"const [registry] = createResource(() => api.getRegistryStatus());","web/src/components/FolderTree.tsx:14-14":"const [children] = createResource(() => (expanded() ? props.prefix : false), listFolder);","web/src/components/PreviewPane.tsx:177-177":"const [folderListing] = createResource(selectedFolder, listFolder);","web/src/components/PreparingBadge.tsx:17-24":"const timers = [\n  setTimeout(() => setElapsed(Date.now() - start), SHOW_AFTER_MS),\n  setInterval(() => setElapsed(Date.now() - start), TICK_MS),\n];\nonCleanup(() => {\n  clearTimeout(timers[0]);\n  clearInterval(timers[1]);\n});","web/src/components/TagPills.tsx:45-55":"let timer: ReturnType<typeof setTimeout> | undefined;\n\nconst open = (el: HTMLElement) => {\n  clearTimeout(timer);\n  timer = setTimeout(() => setAnchor(el.getBoundingClientRect()), CARD_DELAY_MS);\n};\nconst close = () => {\n  clearTimeout(timer);\n  setAnchor(null);\n};\nonCleanup(close);","web/src/api.ts:109-112":"form.remove();\n// Removing the frame before the server answers would cancel the download; by now it has\n// been handed to the browser's download manager.\nsetTimeout(() => frame.remove(), 5 * 60_000);","server/src/app.ts:45-52":"res.on(\"close\", () => {\n  const length = Number(res.getHeader(\"Content-Length\"));\n  const size = Number.isFinite(length) ? sizeText(length) : \"-\";\n  const cut = res.writableFinished ? \"\" : \" (cancelled by the browser)\";\n  const line = `${req.method} ${req.originalUrl} ${res.statusCode} ${Date.now() - start} ms ${size}${cut}`;\n  if (req.originalUrl.startsWith(\"/api/\")) log.info(line);\n  else log.debug(line);\n});","server/src/zip.ts:32-33":"zip.on(\"error\", (err) => output.destroy(err));\noutput.on(\"close\", () => current?.destroy());","server/src/zip.ts:40-41":"// pipe() does not forward source errors, so a broken B2 stream must fail the zip itself.\nstream.on(\"error\", (err) => zip.emit(\"error\", err));","server/src/index.ts:78-84":"app.listen(config.port, config.host, () => {\n  log.info(`B2 GUI server on http://${config.host}:${config.port} (${production ? \"production\" : \"development\"})`);\n  log.info(`B2: bucket ${config.bucket}, prefix ${config.rawPrefix}/, endpoint ${config.endpoint}`);\n  log.info(`Image cache: ${config.cacheDir}, limit ${sizeText(config.cacheMaxBytes)}`);\n  log.info(`Registry: ${registryText()}`);\n  log.info(`Log: level ${config.logLevel}, file ${logFile ?? \"off\"}`);\n});","server/src/b2.ts:1-3":"// Read-only access to the B2 bucket through its S3 API.\n// Only these three read commands are imported: nothing in this app can write, delete, copy or move.\nimport { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, S3Client } from \"@aws-sdk/client-s3\";","docs/superpowers/specs/2026-10-21-b2-gui-design.md:124-137":"## 6. Architecture\n\n```\nBrowser (SolidJS, Vite dev server :5173)\n   |  /api/* (Vite proxy)\n   v\nNode + Express 5 (:3000, bound to 127.0.0.1)  ---- S3 API ---->  Backblaze B2 (read-only key)\n   |\n   v\nlocal disk cache (thumbnails / previews)\n```\n\nAll B2 access goes through the backend. The browser never sees credentials or B2 URLs.\n","docs/superpowers/specs/2026-10-21-b2-gui-design.md:169-175":"### Tech stack (Claude's calls, accepted by Tomer)\n\n- TypeScript on both sides.\n- Frontend: Vite + SolidJS + plain CSS, no component library. Uses signals, `createResource`,\n  `<For>`, `<Show>`.\n- Backend: Node 22 LTS or newer, Express 5, `@aws-sdk/client-s3` (v3), `sharp` (TIFF to JPEG),\n  `dotenv`.","web/src/store.ts:33-38":"/** What the store asks the server. The page passes api.ts; tests pass an in-memory listing. */\nexport type StoreApi = {\n  listFolder(prefix: string): Promise<ListResult>;\n  getRegistryStatus(): Promise<RegistryStatus>;\n  getSplitGroups(): Promise<SplitGroups>;\n};","web/src/store.ts:43-47":"/**\n * Items per page (folders first, then files). A page bounds the DOM and the thumbnail requests;\n * sort, search, filters and selection still cover the whole folder.\n */\nexport const PAGE_SIZE = 200;","server/src/images.ts:15-19":"/**\n * Largest source file this server downloads into memory to render. A 7680 x 5100 16-bit SEM TIFF\n * is about 78 MB; with 4 renders at a time this keeps memory bounded. Downloads are not limited.\n */\nexport const MAX_SOURCE_BYTES = 512 * 1024 * 1024;","server/src/index.ts:65-65":"const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir, config.cacheMaxBytes), limit: createLimiter(4) });","server/src/images.ts:21-26":"/**\n * How long a B2 HEAD answer (ETag and size, or \"missing\") is reused. Without it, every thumbnail\n * request asks B2 before it can use the disk cache: a folder of 200 images is 200 to 400 round\n * trips. A file replaced in B2 shows its old image for at most this long.\n */\nexport const HEAD_TTL_MS = 5 * 60_000;","server/src/images.ts:58-60":"// Renders in progress, by cache name: a second request for the same image waits for the first\n// (a double-click asks for the same preview from the preview pane and the viewer at once).\nconst inFlight = new Map<string, Promise<Buffer>>();","server/src/app.ts:132-138":"// Registry images counted by split and filter values, so the browser can filter splits at the\n// top level without B2 calls. no-cache: the browser keeps a copy but asks each time; Express's\n// ETag turns an unchanged answer into a 304 with no body.\napp.get(\"/api/split-groups\", async (_req, res) => {\n  await registry?.refresh();\n  res.set(\"Cache-Control\", \"private, no-cache\").json({ splits: registry?.splitGroups() ?? {} });\n});","server/src/registry.ts:244-245":"/** Re-reads the source if it changed. Never throws: a failure keeps the last good data. */\nrefresh(): Promise<void>;","server/src/index.ts:14-17":"// How often a listing may ask the Registry source for changes. A local file costs one stat call;\n// GitHub costs one HTTP request (a free 304 when unchanged), so it is asked less often.\nconst FILE_CHECK_EVERY_MS = 5_000;\nconst GITHUB_CHECK_EVERY_MS = 60_000;","server/src/zip.ts:19-23":"/**\n * Builds the zip as a stream. Entries are stored, not compressed (SEM TIFFs barely compress),\n * so the total size is known up front. B2 objects are opened one at a time, only when the zip\n * reaches them. Any error (B2 failure, a size that differs from the listing) destroys `output`.\n */","web/src/api.ts:87-90":"/**\n * Downloads several files of one folder as one zip. A hidden form posts the keys into a hidden\n * frame, so the page stays put and the browser's own download manager streams the zip to disk.\n */","server/src/app.ts:36-44":"/**\n * Gives each request an id that every log line written for it carries (B2 calls, renders), and\n * logs one line when it ends: method, path, status, time, size. API requests are INFO; the\n * website's own files (JS, CSS, fonts) only at DEBUG. A response the browser broke off is marked.\n */\nfunction requestLog(req: Request, res: Response, next: NextFunction): void {\n  const start = Date.now();\n  const id = randomBytes(REQUEST_ID_BYTES).toString(\"hex\");\n  withRequestId(id, () => {","server/src/b2.ts:48-62":"export function createB2(config: Config, client?: S3Like, options: B2Options = {}): B2 {\n  const timeoutMs = options.timeoutMs ?? 60_000;\n  const s3: S3Like =\n    client ??\n    new S3Client({\n      endpoint: config.endpoint,\n      region: config.region,\n      forcePathStyle: true,\n      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },\n      // B2 does not support every newer S3 checksum feature; only use checksums when required.\n      requestChecksumCalculation: \"WHEN_REQUIRED\",\n      responseChecksumValidation: \"WHEN_REQUIRED\",\n      // Without these, a silently dropped connection waits for the OS TCP timeout (minutes).\n      requestHandler: { connectionTimeout: 5_000, socketTimeout: 30_000 },\n    });","server/src/config.ts:75-78":"const host = env.HOST?.trim() || \"127.0.0.1\";\nif (!LOOPBACK_HOSTS.has(host)) {\n  throw new Error(\"HOST must be a loopback address (127.0.0.1, ::1 or localhost) until sign-in exists\");\n}","server/src/app.ts:88-103":"// Host names this server answers to. Any port is accepted: in development the Vite proxy\n// forwards \"localhost:5173\" unchanged. Add the server's domain here when it is deployed.\nconst ALLOWED_HOSTS = new Set([\"localhost\", \"127.0.0.1\", \"[::1]\"]);\n\n/**\n * Blocks DNS rebinding: a malicious website points its own domain at 127.0.0.1 and then reads\n * this API from the user's browser. Such requests still carry the attacker's host name.\n */\nfunction hostCheck(req: Request, _res: Response, next: NextFunction): void {\n  if (!ALLOWED_HOSTS.has(req.hostname ?? \"\")) {\n    log.warn(`Refused request for host \"${req.hostname ?? \"\"}\" (not in ALLOWED_HOSTS): ${req.method} ${req.originalUrl}`);\n    next(new HttpError(403, \"Host not allowed\"));\n    return;\n  }\n  next();\n}","server/src/app.ts:171-176":"// Another website could post this form too; browsers mark such requests as cross-site.\nconst site = req.get(\"Sec-Fetch-Site\");\nif (site && site !== \"same-origin\") {\n  log.warn(`Refused zip download posted from another site (Sec-Fetch-Site: ${site})`);\n  throw new HttpError(403, \"Cross-site request refused\");\n}","server/src/app.ts:65-86":"// Everything the page needs comes from this server. Inline data: covers small assets Vite inlines.\nconst CONTENT_SECURITY_POLICY = [\n  \"default-src 'self'\",\n  \"img-src 'self' data:\",\n  \"font-src 'self' data:\",\n  \"object-src 'none'\",\n  \"base-uri 'self'\",\n  \"form-action 'self'\",\n  \"frame-ancestors 'none'\",\n].join(\"; \");\n\n/** Browser hardening headers on every response (API and built frontend). */\nfunction securityHeaders(_req: Request, res: Response, next: NextFunction): void {\n  res.set({\n    \"Content-Security-Policy\": CONTENT_SECURITY_POLICY,\n    \"X-Content-Type-Options\": \"nosniff\",\n    \"X-Frame-Options\": \"DENY\",\n    \"Referrer-Policy\": \"no-referrer\",\n    \"Cross-Origin-Opener-Policy\": \"same-origin\",\n  });\n  next();\n}","server/src/log.ts:62-67":"export function formatLine(time: Date, level: LogLevel, requestId: string | null, message: string): string {\n  const date = `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;\n  const clock = `${pad(time.getHours())}:${pad(time.getMinutes())}:${pad(time.getSeconds())}.${pad(time.getMilliseconds(), 3)}`;\n  const clean = message.replace(/[\\u0000-\\u001f\\u007f]+/g, \" \").trim();\n  return `${date} ${clock} ${level.toUpperCase().padEnd(5)} [${requestId ?? NO_REQUEST}] ${clean}`;\n}","server/src/app.ts:30-34":"/** Longest browser error message kept in the log. */\nconst MAX_CLIENT_ERROR_LENGTH = 300;\n/** Browser error reports accepted per minute; more are dropped so a broken page cannot flood the log. */\nconst MAX_CLIENT_ERRORS_PER_MINUTE = 60;\nconst MINUTE_MS = 60_000;","server/src/app.ts:105-108":"/** Sign-in slot. Does nothing in the MVP; Google Workspace sign-in checks go here later. */\nfunction authSlot(_req: Request, _res: Response, next: NextFunction): void {\n  next();\n}","server/src/index.ts:33-40":"// Every log line goes to the console and, unless LOG_FILE=off, is appended to the log file.\nconst logFile = config.logFile;\nlet fileStream: ReturnType<typeof createWriteStream> | null = null;\nif (logFile) {\n  mkdirSync(path.dirname(logFile), { recursive: true });\n  fileStream = createWriteStream(logFile, { flags: \"a\" });\n  fileStream.on(\"error\", (err) => console.error(`Cannot write the log file ${logFile}:`, err.message));\n}"};
+/*CODE-END*/
+
+/** A code reference: file path from the repo root, first and last line. */
+function r(f, a, b) { return { f, a, b }; }
+
+/* ---------- map ---------- */
+const LANES = [
+  { id: "browser", x: 10, w: 255, title: "BROWSER · SolidJS", note: ["Vite dev server :5173 in development;", "built files from Express in production."] },
+  { id: "server", x: 280, w: 380, title: "SERVER · Node + Express 5", note: ["Binds 127.0.0.1:3000 only.", "The only part that holds the B2 key.", "Dev: Vite proxies /api here."] },
+  { id: "outside", x: 675, w: 215, title: "OUTSIDE", note: ["Reached only by the server."] },
+];
+
+const NODES = [
+  { id: "user", lane: "browser", x: 25, y: 70, w: 225, t: "User", s: "clicks · keys · Back button",
+    role: ["Every trace starts with a user event.", "Mouse, keyboard and browser history are the only inputs."], ref: null },
+  { id: "comp", lane: "browser", x: 25, y: 132, w: 225, t: "components/*.tsx", s: "read store · call actions",
+    role: ["Render what the store says. Read getters like `store.pageFiles()` inside JSX.", "On events, call store actions (`navigate`, `clickItem`, `openViewer`).", "Never hold app state of their own beyond local UI (zoom, hover)."], ref: r("web/src/components/FileArea.tsx", 30, 33) },
+  { id: "store", lane: "browser", x: 25, y: 194, w: 225, t: "store.ts", s: "signals → memos (all app state)",
+    role: ["One store for the whole page, created once in `createRoot`.", "Signals = inputs (folder, selection, filters). Memos = derived lists.", "Takes an `api` object, so tests pass a fake server."], ref: r("web/src/store.ts", 425, 425) },
+  { id: "api", lane: "browser", x: 25, y: 256, w: 225, t: "api.ts", s: "fetch · 30 s listing memo",
+    role: ["The only file that calls the server.", "Listings shared for 30 s across tree, file area and preview.", "Builds image URLs with `v=uploaded` so a replaced file gets a new URL."], ref: r("web/src/api.ts", 11, 29) },
+  { id: "boot", lane: "browser", x: 25, y: 340, w: 225, t: "index.tsx", s: "boot · global error listeners",
+    role: ["Runs once: error listeners, `GET /api/root`, `store.init`, `syncHistory`, `render`.", "If the server is down, shows one error line instead of the app."], ref: r("web/src/index.tsx", 23, 37) },
+  { id: "hist", lane: "browser", x: 25, y: 402, w: 225, t: "history.ts", s: "URL ⇄ current folder",
+    role: ["Each folder you open = one browser history entry (`?path=`).", "Back/forward, reload and shared links all land in the right folder."], ref: r("web/src/history.ts", 1, 4) },
+
+  { id: "mw", lane: "server", x: 300, y: 256, w: 340, t: "middleware", s: "requestLog · securityHeaders · hostCheck · authSlot",
+    role: ["Runs before every route, in this order.", "Gives each request an id, sets CSP, refuses unknown hosts.", "`authSlot` is the empty place for Google sign-in."], ref: r("server/src/app.ts", 110, 116) },
+  { id: "routes", lane: "server", x: 300, y: 318, w: 340, t: "app.ts routes", s: "/api/root · list · thumb · preview · download · zip",
+    role: ["Thin handlers: validate input, call one module, send the answer.", "Express 5 sends thrown errors to one handler at the end."], ref: r("server/src/app.ts", 118, 130) },
+  { id: "keys", lane: "server", x: 300, y: 380, w: 160, t: "keys.ts", s: "path rules",
+    role: ["`validateKey` / `validatePrefix`: must sit under `B2_RAW_PREFIX`.", "No `..`, no backslash, no leading slash. Else 400."], ref: r("server/src/keys.ts", 3, 17) },
+  { id: "listing", lane: "server", x: 480, y: 380, w: 160, t: "listing.ts", s: "raw S3 → UI rows",
+    role: ["Hides `.cache` and non-TIFF files.", "Batches newest first; adds Registry `meta` and split `tags`."], ref: r("server/src/listing.ts", 28, 40) },
+  { id: "images", lane: "server", x: 300, y: 442, w: 160, t: "images.ts", s: "thumb & preview renderer",
+    role: ["Reuses pipeline `.cache` PNGs when they exist.", "HEAD answers kept 5 min; renders deduped while in flight."], ref: r("server/src/images.ts", 45, 57) },
+  { id: "registry", lane: "server", x: 480, y: 442, w: 160, t: "registry.ts", s: "CSV metadata in memory",
+    role: ["Indexes images.csv by B2 key; reads split_tags.csv.", "Checks the source at most once a minute (GitHub). A failure keeps the last good data."], ref: r("server/src/registry.ts", 249, 260) },
+  { id: "limit", lane: "server", x: 300, y: 504, w: 160, t: "limit.ts · sharp", s: "4 at a time · convert.ts",
+    role: ["At most 4 downloads+conversions at once (memory bound).", "sharp: normalise contrast, resize, JPEG."], ref: r("server/src/limit.ts", 1, 20) },
+  { id: "zip", lane: "server", x: 480, y: 504, w: 160, t: "zip.ts", s: "streamed stored zip",
+    role: ["yazl zip with no compression, so the size is known first.", "Opens one B2 stream at a time."], ref: r("server/src/zip.ts", 19, 27) },
+  { id: "cache", lane: "server", x: 300, y: 566, w: 160, t: "cache.ts", s: "disk cache · LRU trim",
+    role: ["File name = hash of key + size + ETag: a changed image never serves stale.", "Write tmp file then rename; trim least used past CACHE_MAX_MB."], ref: r("server/src/cache.ts", 36, 40) },
+  { id: "b2", lane: "server", x: 480, y: 566, w: 160, t: "b2.ts", s: "S3 client · read-only",
+    role: ["Imports only List, Head and Get commands.", "Timeouts on every call; maps errors to 404 or 502."], ref: r("server/src/b2.ts", 1, 17) },
+  { id: "disk", lane: "server", x: 300, y: 618, w: 160, h: 26, t: ".cache-images/", s: "",
+    role: ["CACHE_DIR on the server disk. Safe to delete any time."], ref: null },
+
+  { id: "github", lane: "outside", x: 690, y: 442, w: 185, t: "GitHub Registry", s: "images.csv · split_tags.csv",
+    role: ["Nanoscout/data-registry, branch main, read-only token.", "ETag → 304 when unchanged (free)."], ref: r("server/src/registry.ts", 69, 74) },
+  { id: "bucket", lane: "outside", x: 690, y: 566, w: 185, t: "Backblaze B2", s: "bucket · read-only key",
+    role: ["Original SEM TIFFs and pipeline `.cache` PNGs.", "Never written by this app."], ref: null },
+];
+
+const EDGES = [
+  { id: "user-comp", d: "M137 114 V132" },
+  { id: "comp-store", d: "M137 176 V194" },
+  { id: "store-api", d: "M137 238 V256" },
+  { id: "boot-api", d: "M137 340 V300" },
+  { id: "boot-store", d: "M25 362 H16 V216 H25" },
+  { id: "hist-store", d: "M250 424 H259 V216 H250" },
+  { id: "api-mw", d: "M250 278 H300" },
+  { id: "mw-routes", d: "M470 300 V318" },
+  { id: "routes-keys", d: "M380 362 V380" },
+  { id: "routes-listing", d: "M560 362 V380" },
+  { id: "listing-registry", d: "M560 424 V442" },
+  { id: "registry-github", d: "M640 464 H690" },
+  { id: "images-limit", d: "M380 486 V504" },
+  { id: "images-cache", d: "M300 464 H291 V588 H300" },
+  { id: "limit-b2", d: "M460 530 H470 V588 H480" },
+  { id: "zip-b2", d: "M560 548 V566" },
+  { id: "b2-bucket", d: "M640 588 H690" },
+  { id: "cache-disk", d: "M380 610 V618" },
+];
+
+/* ---------- traces ---------- */
+const TRACES = [
+  {
+    id: "boot", title: "Page load", learn: ["04", "05", "12"],
+    blurb: "From an empty tab to a rendered folder. Runs once per page load.",
+    steps: [
+      { t: "Global error listeners come first", n: ["boot"], e: [],
+        b: ["`index.tsx` runs before any UI exists.", "Two `window` listeners catch errors no code caught.", "Both send the text to the server log with `reportClientError`."],
+        why: "A biologist will not open DevTools. Browser errors must reach the server log.",
+        refs: [r("web/src/index.tsx", 14, 21)] },
+      { t: "Ask the server where browsing starts", n: ["boot", "api"], e: ["boot-api"],
+        b: ["`getRoot()` calls `GET /api/root`.", "The browser hard-codes no bucket path."],
+        refs: [r("web/src/api.ts", 4, 9)] },
+      { t: "Every request crosses the middleware chain", n: ["api", "mw"], e: ["api-mw"],
+        b: ["Order: `requestLog` → `securityHeaders` → `hostCheck` → `authSlot`.", "`authSlot` does nothing yet. Google sign-in goes here."],
+        refs: [r("server/src/app.ts", 110, 116)] },
+      { t: "/api/root answers from config", n: ["mw", "routes"], e: ["mw-routes"],
+        b: ["Prefix comes from `B2_RAW_PREFIX` in `.env`.", "One place to change the bucket folder."],
+        refs: [r("server/src/app.ts", 118, 123)] },
+      { t: "Store opens the first folder", n: ["boot", "store", "hist"], e: ["boot-store"],
+        b: ["`startPrefix` reads `?path=` from the address bar.", "`init` falls back to the root when the path is outside it."],
+        refs: [r("web/src/index.tsx", 23, 29), r("web/src/store.ts", 91, 98)] },
+      { t: "Setting the folder starts the first listing", n: ["store", "api"], e: ["store-api"],
+        b: ["`createResource` watches `currentPrefix()`.", "When it changes, the resource calls `api.listFolder(p)` by itself.", "Components never call fetch for the listing."],
+        refs: [r("web/src/store.ts", 86, 89)] },
+      { t: "History sync starts", n: ["hist", "store"], e: ["hist-store"],
+        b: ["`replaceState` writes the folder into the URL.", "Adds one `popstate` listener and one `createEffect` (see trace Browser Back)."],
+        refs: [r("web/src/history.ts", 35, 40)] },
+      { t: "Render App: one global shortcut", n: ["comp"], e: [],
+        b: ["`render(() => <App />)` mounts the tree once.", "`App` adds Ctrl+B in `onMount` and removes it in `onCleanup`."],
+        refs: [r("web/src/App.tsx", 11, 20)] },
+      { t: "Components subscribe by reading", n: ["comp", "store", "api"], e: ["comp-store", "store-api"],
+        b: ["Reading `store.pageFiles()` in JSX is the subscription. No `useEffect`, no dependency array.", "Tree, file area and preview ask for the same folder. `memoByKey` gives them one shared request."],
+        refs: [r("web/src/api.ts", 11, 16), r("web/src/api.ts", 28, 29)] },
+    ],
+  },
+  {
+    id: "folder", title: "Open a folder", learn: ["03", "04"],
+    blurb: "Double-click a batch folder. Follow it from the click to B2 and back to the screen.",
+    steps: [
+      { t: "Double-click calls one store action", n: ["user", "comp"], e: ["user-comp"],
+        b: ["The tile's `onDblClick` calls `store.navigate(prefix)`.", "Single click (`onClick`) only selects."],
+        refs: [r("web/src/components/IconsView.tsx", 37, 46)] },
+      { t: "navigate() changes three signals", n: ["comp", "store"], e: ["comp-store"],
+        b: ["Sets `currentPrefix`, clears the selection and the search.", "No back list here: the browser history is the back list."],
+        refs: [r("web/src/store.ts", 100, 109)] },
+      { t: "The resource reloads; the UI shows skeletons", n: ["store", "comp"], e: ["comp-store"],
+        b: ["`listing` sees a new source value and refetches.", "`listing.loading` is true, so `FileArea` shows grey tiles."],
+        refs: [r("web/src/store.ts", 86, 87), r("web/src/components/FileArea.tsx", 96, 104)] },
+      { t: "An effect adds a history entry", n: ["hist", "store"], e: ["hist-store"],
+        b: ["The effect reads `currentPrefix()`, so it re-runs on every change.", "`pushState` puts `?path=...` in the address bar."],
+        refs: [r("web/src/history.ts", 50, 60)] },
+      { t: "One request, shared by every caller", n: ["api"], e: [],
+        b: ["`memoByKey` keeps the promise per prefix for 30 s.", "Two callers at the same moment share one in-flight request.", "A failed load is forgotten, so the next call retries."],
+        refs: [r("web/src/lib/memo.ts", 14, 32)] },
+      { t: "fetch /api/list", n: ["api", "mw"], e: ["api-mw"],
+        b: ["Prefix is URL-encoded (names hold spaces and `^`).", "On error, throws the server's own `{ error }` text."],
+        refs: [r("web/src/api.ts", 18, 26)] },
+      { t: "Validate the prefix", n: ["routes", "keys"], e: ["mw-routes", "routes-keys"],
+        b: ["Must start with `B2_RAW_PREFIX/` and end with `/`.", "No `..`, no backslash. Else 400 before any B2 call."],
+        refs: [r("server/src/app.ts", 125, 126), r("server/src/keys.ts", 3, 17)] },
+      { t: "B2 list and Registry check run side by side", n: ["routes", "b2", "registry"], e: [],
+        b: ["`Promise.all` runs both at once.", "`refresh()` never throws, so the Registry can never fail a listing."],
+        refs: [r("server/src/app.ts", 127, 130)] },
+      { t: "b2.list(): one folder level, every page", n: ["b2", "bucket"], e: ["b2-bucket"],
+        b: ["`ListObjectsV2` with `Delimiter: '/'` = one level only.", "Loops on `ContinuationToken` until the last page.", "Each call has a timeout, so a stalled B2 cannot hang the request."],
+        refs: [r("server/src/b2.ts", 68, 84)] },
+      { t: "registry.refresh(): cheap when unchanged", n: ["registry", "github"], e: ["registry-github"],
+        b: ["Asks the source at most once per `checkEveryMs` (60 s for GitHub).", "A second caller waits for the same `inFlight` promise.", "GitHub answers 304 with no body when nothing changed."],
+        refs: [r("server/src/registry.ts", 326, 336)] },
+      { t: "mapListing(): raw S3 into UI rows", n: ["listing", "registry"], e: ["routes-listing", "listing-registry"],
+        b: ["Keeps only TIFF files; hides `.cache`.", "Adds `meta` (Registry row or null) and the split `tags`."],
+        refs: [r("server/src/listing.ts", 60, 73)] },
+      { t: "Memos recompute in a chain", n: ["store"], e: ["store-api"],
+        b: ["`folderFiles` → `visibleFiles` (search, filters, sort) → `visibleIds` → `page` → `pageFiles`.", "Each memo re-runs only if an input it read changed."],
+        refs: [r("web/src/store.ts", 193, 208)] },
+      { t: "Only the changed DOM updates", n: ["comp", "store"], e: ["comp-store"],
+        b: ["`<For>` keys rows by item: a sort or filter moves existing rows instead of rebuilding them.", "Each `<img loading='lazy'>` asks `/api/thumb` only when it scrolls into view."],
+        refs: [r("web/src/components/IconsView.tsx", 60, 83)] },
+    ],
+  },
+  {
+    id: "preview", title: "Select → preview", learn: ["06", "07"],
+    blurb: "Click one image. The preview pane shows it, and the server makes a 1600 px JPEG from a 16-bit TIFF.",
+    steps: [
+      { t: "Click passes the modifier keys", n: ["user", "comp"], e: ["user-comp"],
+        b: ["`stopPropagation` keeps the file area's own click (clear selection) from firing.", "Ctrl/Cmd = toggle, Shift = range."],
+        refs: [r("web/src/components/IconsView.tsx", 67, 71)] },
+      { t: "clickItem() picks the selection rule", n: ["store"], e: ["comp-store"],
+        b: ["Plain click → `select(id)`: one item, sets anchor and focus.", "Selection is a `Set` of ids, not of objects."],
+        refs: [r("web/src/store.ts", 325, 330), r("web/src/store.ts", 289, 295)] },
+      { t: "selected = exactly one visible item", n: ["store"], e: [],
+        b: ["`selection` drops ids that a filter now hides.", "`equals` compares the entry, so the same file does not re-trigger the pane."],
+        refs: [r("web/src/store.ts", 274, 282)] },
+      { t: "PreviewPane swaps to the file view", n: ["comp", "store"], e: ["comp-store"],
+        b: ["`<Match keyed>`: a new file builds a fresh `FilePreview`.", "So the old picture never lingers while the new one loads."],
+        refs: [r("web/src/components/PreviewPane.tsx", 182, 189)] },
+      { t: "Thumbnail first, sharp preview on top", n: ["comp"], e: [],
+        b: ["The thumbnail is already in the browser cache from the grid.", "`PreparingBadge` shows size and seconds until `onLoad`.", "`onError` reports to the server log."],
+        refs: [r("web/src/components/PreviewPane.tsx", 85, 103)] },
+      { t: "Image URLs carry the upload time", n: ["api"], e: ["api-mw"],
+        b: ["`&v=uploaded`: a file replaced in B2 gets a new URL.", "So the 1-day browser cache never shows an old image."],
+        refs: [r("web/src/api.ts", 73, 82)] },
+      { t: "Route: validate, render, cache 1 day", n: ["mw", "routes", "keys"], e: ["mw-routes", "routes-keys"],
+        b: ["Same handler for `/api/thumb` and `/api/preview`.", "`Cache-Control: private` = this browser only, no shared proxy."],
+        refs: [r("server/src/app.ts", 213, 221)] },
+      { t: "Find the best source", n: ["images", "b2", "bucket"], e: ["b2-bucket"],
+        b: ["Pipeline `.cache` PNG exists? Use it (thumb is sent as is).", "Else use the TIFF. HEAD answers are reused for 5 min."],
+        refs: [r("server/src/images.ts", 85, 102)] },
+      { t: "Disk cache hit returns at once", n: ["images", "cache", "disk"], e: ["images-cache", "cache-disk"],
+        b: ["Cache file name = sha256 of key + size + ETag.", "New ETag = new name. No invalidation code needed."],
+        refs: [r("server/src/images.ts", 104, 110), r("server/src/cache.ts", 14, 17)] },
+      { t: "Miss: guard size, join a running render", n: ["images"], e: [],
+        b: ["Sources over 512 MB answer 422 (no preview).", "Same image already rendering? Wait for that promise (`inFlight`)."],
+        refs: [r("server/src/images.ts", 112, 124)] },
+      { t: "Download + convert inside the limiter", n: ["images", "limit", "b2", "bucket"], e: ["images-limit", "limit-b2", "b2-bucket"],
+        b: ["At most 4 renders hold image bytes at once.", "The rest wait in order (a simple queue of resolvers)."],
+        refs: [r("server/src/images.ts", 137, 148), r("server/src/limit.ts", 3, 20)] },
+      { t: "sharp: 16-bit SEM to a visible JPEG", n: ["limit"], e: [],
+        b: ["`normalise()` stretches contrast. Else 16-bit SEM looks black.", "Long side ≤ 1600 px, JPEG quality 82."],
+        refs: [r("server/src/convert.ts", 3, 15)] },
+      { t: "Save to disk safely", n: ["cache", "disk"], e: ["images-cache", "cache-disk"],
+        b: ["Write a `.tmp` file, then rename: no reader sees half a file.", "Over `CACHE_MAX_MB`, delete least used files down to 90%."],
+        refs: [r("server/src/cache.ts", 81, 94)] },
+      { t: "Badge stops; its timers are cleared", n: ["comp"], e: [],
+        b: ["`onLoad` sets `loaded`, so the badge unmounts.", "Its `onCleanup` clears the timeout and the interval."],
+        refs: [r("web/src/components/PreparingBadge.tsx", 14, 24)] },
+    ],
+  },
+  {
+    id: "viewer", title: "Viewer & keys", learn: ["08"],
+    blurb: "Press Space on a selected image. Full-screen viewer, arrow keys step, Esc closes.",
+    steps: [
+      { t: "FileArea's keydown listener", n: ["user", "comp"], e: ["user-comp"],
+        b: ["One `window` keydown listener for the file area.", "Ignores keys while the viewer is open or while typing in an input.", "Enter or Space opens the single selected item."],
+        refs: [r("web/src/components/FileArea.tsx", 47, 66)] },
+      { t: "openViewer(): selection + viewer key", n: ["store"], e: ["comp-store"],
+        b: ["Only opens a file that is visible.", "`viewer` memo finds its index in `visibleFiles` and gives `at(delta)`."],
+        refs: [r("web/src/store.ts", 343, 358)] },
+      { t: "App mounts the Viewer", n: ["comp", "store"], e: ["comp-store"],
+        b: ["`<Show when={…file.key} keyed>`: each new key builds a fresh `Viewer`.", "The old one unmounts, so its `onCleanup` runs."],
+        refs: [r("web/src/App.tsx", 41, 43)] },
+      { t: "Viewer adds its own listeners", n: ["comp"], e: [],
+        b: ["`window` keydown: Esc, ←, →.", "`ResizeObserver` on the stage feeds the scale bar width.", "Both removed in `onCleanup`."],
+        refs: [r("web/src/components/Viewer.tsx", 34, 40), r("web/src/components/Viewer.tsx", 79, 87)] },
+      { t: "Two keydown listeners, no conflict", n: ["comp", "store"], e: ["comp-store"],
+        b: ["FileArea's handler returns at once when `store.viewer()` is set.", "So arrows step the viewer, not the grid selection."],
+        refs: [r("web/src/components/FileArea.tsx", 47, 50)] },
+      { t: "→ steps to the next visible file", n: ["store"], e: [],
+        b: ["`stepViewer(1)` asks `viewer().at(1)`. Stops at both ends.", "Follows search, filters and sort, because it walks `visibleFiles`."],
+        refs: [r("web/src/store.ts", 360, 364)] },
+      { t: "Prefetch neighbours", n: ["comp", "api"], e: ["api-mw"],
+        b: ["An effect loads previews of +1, +2 and −1 with `new Image()`.", "Stepping then finds them in the browser cache."],
+        refs: [r("web/src/components/Viewer.tsx", 63, 69)] },
+      { t: "Zoom around the cursor", n: ["comp"], e: [],
+        b: ["Wheel zooms 1× to 10×, keeping the point under the cursor fixed.", "Drag pans with pointer capture."],
+        refs: [r("web/src/components/Viewer.tsx", 89, 101)] },
+      { t: "Esc closes; cleanup runs", n: ["store", "comp"], e: ["comp-store"],
+        b: ["`closeViewer` sets `viewerKey` to null.", "`viewer` memo → null → `<Show>` unmounts the Viewer → listeners removed."],
+        refs: [r("web/src/store.ts", 372, 372)] },
+    ],
+  },
+  {
+    id: "back", title: "Browser Back", learn: ["12"],
+    blurb: "Press the browser's Back button (or Alt+←, or the toolbar arrow). No custom back stack exists.",
+    steps: [
+      { t: "Toolbar Back = browser Back", n: ["user", "comp", "hist"], e: ["user-comp"],
+        b: ["The toolbar button calls `history.back()`.", "So mouse side buttons and Alt+← behave the same."],
+        refs: [r("web/src/history.ts", 30, 33)] },
+      { t: "popstate listener opens that folder", n: ["hist", "store"], e: ["hist-store"],
+        b: ["Each entry stores `{ prefix, depth }` in `history.state`.", "The listener calls `store.navigate(entry.prefix)`."],
+        refs: [r("web/src/history.ts", 42, 48)] },
+      { t: "Listing comes from the 30 s memo", n: ["store", "api"], e: ["store-api"],
+        b: ["Recently seen folder → same promise, no network call.", "Older than 30 s → one fresh `/api/list`."],
+        refs: [r("web/src/api.ts", 28, 29)] },
+      { t: "The effect does not push a duplicate", n: ["hist"], e: [],
+        b: ["The `currentPrefix` effect re-runs after navigate.", "`history.state` already matches, so it returns early."],
+        refs: [r("web/src/history.ts", 50, 60)] },
+      { t: "Back button knows when to disable", n: ["hist", "comp"], e: [],
+        b: ["`depth` counts entries behind this one.", "`canGoBack()` is 0 on the first folder: Back cannot leave the site."],
+        refs: [r("web/src/history.ts", 25, 28)] },
+      { t: "Reload and shared links", n: ["hist", "boot"], e: [],
+        b: ["The URL holds only the path below the root.", "`startPrefix` reads it on the next page load."],
+        refs: [r("web/src/history.ts", 13, 23)] },
+    ],
+  },
+  {
+    id: "zip", title: "Zip download", learn: ["07"],
+    blurb: "Select several images and press Download .zip. The browser streams one zip straight to disk.",
+    steps: [
+      { t: "Many selected → MultiPreview", n: ["user", "comp", "store"], e: ["user-comp", "comp-store"],
+        b: ["Ctrl+click or Shift+click builds the selection.", "More than one item switches the pane to `MultiPreview`."],
+        refs: [r("web/src/components/PreviewPane.tsx", 125, 130), r("web/src/components/PreviewPane.tsx", 182, 185)] },
+      { t: "Hidden form + hidden iframe", n: ["api"], e: ["api-mw"],
+        b: ["A form POST, not `fetch`: the browser's download manager saves the stream.", "1000 keys do not fit in a URL, so not GET."],
+        why: "fetch would hold the whole zip in page memory before saving. Multi-GB zips would crash the tab.",
+        refs: [r("web/src/api.ts", 87, 108)] },
+      { t: "Cross-site check", n: ["mw", "routes"], e: ["mw-routes"],
+        b: ["Body size limit 512 KB.", "`Sec-Fetch-Site` must be `same-origin`: another site cannot post this form."],
+        refs: [r("server/src/app.ts", 165, 176)] },
+      { t: "Validate every key", n: ["routes", "keys"], e: ["routes-keys"],
+        b: ["1 to 1000 keys, each passes `validateKey`, duplicates removed.", "All files must sit in one folder."],
+        refs: [r("server/src/app.ts", 178, 185)] },
+      { t: "One listing before any byte", n: ["routes", "b2", "bucket"], e: ["b2-bucket"],
+        b: ["Gives exact sizes → exact `Content-Length` → real progress bar.", "A missing file is a 404 while an error page is still possible."],
+        refs: [r("server/src/app.ts", 187, 194)] },
+      { t: "Build the zip lazily", n: ["zip", "b2", "bucket"], e: ["zip-b2", "b2-bucket"],
+        b: ["Stored, not compressed: TIFFs barely compress, size is known.", "Each B2 stream opens only when the zip reaches it."],
+        refs: [r("server/src/zip.ts", 24, 47)] },
+      { t: "Stream; handle cancel", n: ["routes", "zip"], e: [],
+        b: ["`pipeline(output, res)` streams with back-pressure.", "Browser cancel → logged as cancel, open B2 stream destroyed."],
+        refs: [r("server/src/app.ts", 196, 209)] },
+      { t: "Clean up the iframe later", n: ["api"], e: [],
+        b: ["Removing it early would cancel the download.", "After 5 min it is surely handed to the download manager."],
+        refs: [r("web/src/api.ts", 109, 113)] },
+    ],
+  },
+  {
+    id: "log", title: "Request id & errors", learn: ["15"],
+    blurb: "How one request gets one id in every log line, and how errors reach the user and the log.",
+    steps: [
+      { t: "requestLog gives each request an id", n: ["mw"], e: ["api-mw"],
+        b: ["6 hex characters per request.", "`res.on('close')` writes one summary line: status, ms, size, cancelled."],
+        refs: [r("server/src/app.ts", 36, 55)] },
+      { t: "AsyncLocalStorage carries the id", n: ["mw", "b2", "images"], e: [],
+        b: ["`withRequestId` runs the request inside a context.", "Any `log.*` deeper down (B2, render) prints the same id. No id parameter passed around."],
+        refs: [r("server/src/log.ts", 43, 45), r("server/src/log.ts", 69, 72)] },
+      { t: "B2 errors become HTTP errors", n: ["b2"], e: [],
+        b: ["Not found → 404. Network, credentials, outage → 502 'B2 unavailable'.", "The original error stays as `cause` for the log."],
+        refs: [r("server/src/b2.ts", 41, 46)] },
+      { t: "One error handler for all routes", n: ["routes"], e: [],
+        b: ["Express 5 forwards errors thrown in async handlers here.", "Client gets a short `{ error }`. Full error goes to the log only."],
+        refs: [r("server/src/app.ts", 250, 260)] },
+      { t: "Browser shows the server's message", n: ["api", "comp"], e: ["store-api", "comp-store"],
+        b: ["`fetchListing` throws `Error(body.error)`.", "`FileArea` shows 'Could not load this folder: …'."],
+        refs: [r("web/src/components/FileArea.tsx", 96, 99)] },
+      { t: "Browser errors go back to the log", n: ["api", "mw", "routes"], e: ["api-mw", "mw-routes"],
+        b: ["Each message sent once per page; `keepalive` survives page close.", "Server: same-site only, 2 KB, 60 per minute."],
+        refs: [r("web/src/api.ts", 46, 62), r("server/src/app.ts", 223, 240)] },
+    ],
+  },
+];
+
+/* ---------- Solid concepts ---------- */
+const CONCEPTS = [
+  { kind: "signal", name: "createSignal", p: "A value with a getter and a setter. Reading `x()` inside JSX or a memo subscribes to it.", react: "React: useState, but readable anywhere, not only in components.", ref: r("web/src/store.ts", 61, 61) },
+  { kind: "memo", name: "createMemo", p: "A cached value derived from signals. Re-runs only when an input it read changed.", react: "React: useMemo, but dependencies are tracked for you.", ref: r("web/src/store.ts", 205, 208) },
+  { kind: "resource", name: "createResource", p: "Async data tied to a source signal. Refetches when the source changes. Gives `loading` and `error`.", react: "React: useEffect + fetch + state, or React Query.", ref: r("web/src/store.ts", 87, 87) },
+  { kind: "effect", name: "createEffect", p: "Side effect that re-runs when what it read changes. Here: history, tree expand, prefetch.", react: "React: useEffect without a dependency array.", ref: r("web/src/history.ts", 50, 60) },
+  { kind: "dom", name: "onMount / onCleanup", p: "Run once after mount; run when the owner is destroyed. The pair for `addEventListener`.", react: "React: useEffect(() => { …; return cleanup }, []).", ref: r("web/src/App.tsx", 19, 20) },
+  { kind: "fn", name: "createRoot", p: "An owner that lives outside any component. Here it keeps the store alive for the page.", react: "React: no direct match; closest is a module-level store (Zustand).", ref: r("web/src/store.ts", 425, 425) },
+];
+
+/* ---------- store graph ---------- */
+const S = "web/src/store.ts";
+const GRAPH = [
+  { title: "Folder contents → the grid", chain: [
+      [{ k: "signal", n: "currentPrefix", ref: r(S, 61, 61) }],
+      [{ k: "resource", n: "listing", ref: r(S, 87, 87) }],
+      [{ k: "memo", n: "listedFolders", ref: r(S, 144, 144) }, { k: "memo", n: "folderFiles", ref: r(S, 198, 198) }],
+      [{ k: "memo", n: "visibleFolders", ref: r(S, 193, 196) }, { k: "memo", n: "visibleFiles", ref: r(S, 205, 208) }],
+      [{ k: "memo", n: "visibleIds", ref: r(S, 221, 221) }],
+      [{ k: "memo", n: "page", ref: r(S, 230, 234) }],
+      [{ k: "memo", n: "pageFolders", ref: r(S, 247, 247) }, { k: "memo", n: "pageFiles", ref: r(S, 250, 255) }],
+      [{ k: "ui", n: "IconsView / DetailsView", ref: r("web/src/components/IconsView.tsx", 32, 35) }],
+    ], feeds: "Also read by visibleFiles/visibleFolders: search, dateFrom, dateTo, tagFilter, filters, sortColumn, sortDir, userSorted." },
+  { title: "Top-level split filters", chain: [
+      [{ k: "signal", n: "root", ref: r(S, 60, 60) }],
+      [{ k: "resource", n: "splitGroups", ref: r(S, 150, 150) }],
+      [{ k: "memo", n: "splitFiles", ref: r(S, 156, 166) }],
+      [{ k: "fn", n: "splitMatch", ref: r(S, 172, 181) }],
+      [{ k: "fn", n: "passesBatchFilters", ref: r(S, 184, 191) }],
+      [{ k: "memo", n: "visibleFolders", ref: r(S, 193, 196) }, { k: "ui", n: "FolderTree", ref: r("web/src/components/FolderTree.tsx", 22, 26) }],
+    ], feeds: "splitMatch and passesBatchFilters are plain functions; they are reactive because memos and JSX call them." },
+  { title: "Selection → preview pane", chain: [
+      [{ k: "signal", n: "selectedIds", ref: r(S, 63, 63) }],
+      [{ k: "memo", n: "selection", ref: r(S, 261, 272) }],
+      [{ k: "memo", n: "selected", ref: r(S, 275, 282) }, { k: "memo", n: "selectedFiles", ref: r(S, 285, 287) }],
+      [{ k: "ui", n: "PreviewPane / MultiPreview", ref: r("web/src/components/PreviewPane.tsx", 163, 175) }],
+    ], feeds: "selection also reads visibleFolders and visibleFiles: a filter that hides an item drops it from the selection." },
+  { title: "Viewer", chain: [
+      [{ k: "signal", n: "viewerKey", ref: r(S, 82, 82) }],
+      [{ k: "memo", n: "viewer", ref: r(S, 344, 351) }],
+      [{ k: "ui", n: "App <Show keyed>", ref: r("web/src/App.tsx", 41, 43) }],
+      [{ k: "ui", n: "Viewer", ref: r("web/src/components/Viewer.tsx", 23, 23) }],
+    ], feeds: "viewer also reads visibleFiles, so stepping follows the current search, filters and sort." },
+  { title: "Address bar", chain: [
+      [{ k: "signal", n: "currentPrefix", ref: r(S, 61, 61) }],
+      [{ k: "effect", n: "history effect", ref: r("web/src/history.ts", 50, 60) }],
+      [{ k: "ui", n: "URL ?path=", ref: r("web/src/history.ts", 13, 18) }],
+    ], feeds: "Reverse direction: the popstate listener calls store.navigate()." },
+];
+
+/* ---------- listeners & effects ---------- */
+const W = "web/src/";
+const INVENTORY = [
+  { k: "dom", side: "web", ref: r(W + "index.tsx", 15, 17), on: "`window` error", does: "Report uncaught script errors to the server log", off: "page lifetime" },
+  { k: "dom", side: "web", ref: r(W + "index.tsx", 18, 21), on: "`window` unhandledrejection", does: "Report unhandled promise errors", off: "page lifetime" },
+  { k: "dom", side: "web", ref: r(W + "history.ts", 42, 48), on: "`window` popstate", does: "Back/forward: `store.navigate(entry.prefix)`", off: "page lifetime" },
+  { k: "effect", side: "web", ref: r(W + "history.ts", 50, 60), on: "`currentPrefix` changes", does: "`pushState` a new history entry", off: "page lifetime (createRoot)" },
+  { k: "dom", side: "web", ref: r(W + "App.tsx", 19, 20), on: "`window` keydown", does: "Ctrl+B toggles the sidebar", off: "onCleanup" },
+  { k: "dom", side: "web", ref: r(W + "components/FileArea.tsx", 85, 86), on: "`window` keydown", does: "Arrows, Shift+arrows, Ctrl+A, Enter/Space, Backspace", off: "onCleanup" },
+  { k: "dom", side: "web", ref: r(W + "components/Viewer.tsx", 86, 87), on: "`window` keydown", does: "Esc closes, ← → step", off: "onCleanup" },
+  { k: "dom", side: "web", ref: r(W + "components/Popover.tsx", 17, 24), on: "`document` pointerdown + keydown", does: "Close the filter/sort panel on outside click or Esc", off: "onCleanup" },
+  { k: "observer", side: "web", ref: r(W + "components/Viewer.tsx", 34, 40), on: "stage resized", does: "Update stage size for the scale bar", off: "onCleanup → disconnect" },
+  { k: "effect", side: "web", ref: r(W + "components/Viewer.tsx", 52, 61), on: "`props.fileKey` changes", does: "Reset zoom, error and loaded state", off: "with the Viewer" },
+  { k: "effect", side: "web", ref: r(W + "components/Viewer.tsx", 63, 69), on: "viewer position changes", does: "Prefetch previews of +1, +2, −1", off: "with the Viewer" },
+  { k: "effect", side: "web", ref: r(W + "components/FolderTree.tsx", 16, 20), on: "`currentPrefix` changes", does: "Expand the tree down to the open folder", off: "with the tree node" },
+  { k: "effect", side: "web", ref: r(W + "components/DetailsView.tsx", 67, 67), on: "selection count changes", does: "Set the header checkbox `indeterminate`", off: "with the table" },
+  { k: "resource", side: "web", ref: r(W + "store.ts", 87, 87), on: "`currentPrefix` changes", does: "Load the folder listing", off: "page lifetime" },
+  { k: "resource", side: "web", ref: r(W + "store.ts", 89, 89), on: "once", does: "Registry status for the status bar", off: "page lifetime" },
+  { k: "resource", side: "web", ref: r(W + "store.ts", 150, 150), on: "`root` set", does: "Split groups for top-level filters", off: "page lifetime" },
+  { k: "resource", side: "web", ref: r(W + "components/FolderTree.tsx", 14, 14), on: "node expanded", does: "Load that folder's children (lazy tree)", off: "with the tree node" },
+  { k: "resource", side: "web", ref: r(W + "components/PreviewPane.tsx", 177, 177), on: "a folder is selected", does: "Count items in the selected folder", off: "with the pane" },
+  { k: "timer", side: "web", ref: r(W + "components/PreparingBadge.tsx", 17, 24), on: "400 ms, then every 1 s", does: "Show and update 'Preparing preview · N s'", off: "onCleanup → clear" },
+  { k: "timer", side: "web", ref: r(W + "components/TagPills.tsx", 45, 55), on: "hover delay", does: "Open the tag card", off: "onCleanup → clearTimeout" },
+  { k: "timer", side: "web", ref: r(W + "api.ts", 109, 112), on: "5 min after a zip starts", does: "Remove the hidden iframe", off: "runs once" },
+  { k: "dom", side: "server", ref: r("server/src/app.ts", 45, 52), on: "response `close`", does: "Write the request summary log line", off: "per request" },
+  { k: "dom", side: "server", ref: r("server/src/zip.ts", 32, 33), on: "zip `error` / output `close`", does: "Fail the zip / destroy the open B2 stream", off: "per download" },
+  { k: "dom", side: "server", ref: r("server/src/zip.ts", 40, 41), on: "B2 stream `error`", does: "Forward to the zip so it fails", off: "per entry" },
+  { k: "dom", side: "server", ref: r("server/src/index.ts", 78, 84), on: "`app.listen`", does: "Start serving; print the startup summary", off: "process lifetime" },
+];
+const KIND_LABEL = { dom: "event", effect: "effect", resource: "resource", timer: "timer", observer: "observer" };
+
+/* ---------- decisions ---------- */
+const DECISIONS = [
+  { area: "Architecture", t: "Server proxy for every B2 call",
+    chose: "Browser → Express → B2", over: "Presigned URLs or B2 keys in the browser", cost: "All image bytes pass through the server",
+    why: ["B2 credentials never reach a browser (anti-goal in the spec).", "One place to add sign-in, logging and limits."],
+    refs: [r("server/src/b2.ts", 1, 3), r("docs/superpowers/specs/2026-10-21-b2-gui-design.md", 124, 137)] },
+  { area: "Architecture", t: "Read-only by construction",
+    chose: "Import only List, Head, Get", over: "Trust the read-only key alone", cost: "None",
+    why: ["Two locks: the key is read-only and the code cannot write.", "A reviewer checks one import line."],
+    refs: [r("server/src/b2.ts", 1, 3)] },
+  { area: "Front end", t: "SolidJS",
+    chose: "SolidJS + signals", over: "React", cost: "Smaller ecosystem; fewer colleagues know it",
+    why: ["Components run once; only the DOM node that reads a signal updates.", "Good for a 200-tile grid with live selection. Also a learning goal."],
+    refs: [r("docs/superpowers/specs/2026-10-21-b2-gui-design.md", 169, 175)] },
+  { area: "Front end", t: "One module-level store",
+    chose: "`createStore(api)` in `createRoot`", over: "Context providers or state per component", cost: "Global: one instance per page",
+    why: ["Every component imports `store` and reads what it needs.", "Takes `api` as a parameter, so `store.test.ts` runs with a fake server."],
+    refs: [r("web/src/store.ts", 33, 38), r("web/src/store.ts", 425, 425)] },
+  { area: "Front end", t: "Browser history is the back stack",
+    chose: "`pushState` per folder", over: "A back list inside the store", cost: "One effect + one listener to keep in sync",
+    why: ["Back, forward, mouse buttons, reload and shared links all work.", "Back never leaves the site from the first folder."],
+    refs: [r("web/src/history.ts", 1, 4)] },
+  { area: "Front end", t: "Share listings for 30 s",
+    chose: "`memoByKey(fetchListing, 30 s)`", over: "Fetch on every ask", cost: "New files show after up to 30 s (or reload)",
+    why: ["Tree, file area and preview ask for the same folder.", "Without it, one click = 2–3 B2 list calls."],
+    refs: [r("web/src/api.ts", 11, 16)] },
+  { area: "Front end", t: "Pages of 200 items",
+    chose: "Paging in the store", over: "Render all / virtual scrolling", cost: "User clicks to the next page",
+    why: ["Bounds DOM nodes and thumbnail requests.", "Sort, search, filters and selection still cover the whole folder."],
+    refs: [r("web/src/store.ts", 43, 47)] },
+  { area: "Server performance", t: "Disk cache keyed by ETag",
+    chose: "sha256(key | size | ETag) file names", over: "Cache by key + invalidation", cost: "Old files stay until LRU trims them",
+    why: ["A changed object gets a new name: never stale, no invalidation code.", "Shared by all users and kept across restarts."],
+    refs: [r("server/src/cache.ts", 14, 17)] },
+  { area: "Server performance", t: "At most 4 renders at once",
+    chose: "`createLimiter(4)`", over: "Unlimited parallel sharp jobs", cost: "A big folder's first view queues",
+    why: ["A 16-bit SEM TIFF is about 78 MB in memory.", "4 slots keep memory bounded on a small server."],
+    refs: [r("server/src/images.ts", 15, 19), r("server/src/index.ts", 65, 65)] },
+  { area: "Server performance", t: "Reuse HEAD answers 5 min",
+    chose: "In-memory HEAD map with TTL", over: "HEAD on every thumbnail", cost: "Replaced file shows old image up to 5 min",
+    why: ["A folder of 200 images would be 200–400 B2 round trips per view."],
+    refs: [r("server/src/images.ts", 21, 26)] },
+  { area: "Server performance", t: "Join renders already running",
+    chose: "`inFlight` map by cache name", over: "Render twice", cost: "None",
+    why: ["Double-click asks the pane and the viewer for the same preview at once."],
+    refs: [r("server/src/images.ts", 58, 60)] },
+  { area: "Data", t: "Split groups, not every image",
+    chose: "`/api/split-groups` counts by filter values", over: "Send every Registry row", cost: "Grouping code on the server",
+    why: ["Top-level filters work without listing every split in B2.", "Express ETag turns an unchanged answer into a 304."],
+    refs: [r("server/src/app.ts", 132, 138)] },
+  { area: "Data", t: "Registry never blocks browsing",
+    chose: "`refresh()` never throws, keeps last good", over: "Fail the listing on Registry errors", cost: "Metadata can be stale while GitHub fails",
+    why: ["B2 browsing must work even with no Registry configured.", "GitHub checked at most once a minute; 304 is free."],
+    refs: [r("server/src/registry.ts", 244, 245), r("server/src/index.ts", 14, 17)] },
+  { area: "Downloads", t: "Stored zip, streamed",
+    chose: "yazl, no compression", over: "Compressed zip / build in memory", cost: "Zip is as big as the TIFFs",
+    why: ["TIFFs barely compress. Known size gives a real progress bar.", "One B2 stream open at a time; nothing held in memory."],
+    refs: [r("server/src/zip.ts", 19, 23)] },
+  { area: "Downloads", t: "Form POST into a hidden iframe",
+    chose: "Native form submit", over: "`fetch` + Blob", cost: "Harder to show errors in the page",
+    why: ["The browser's download manager streams to disk.", "1000 keys do not fit in a GET URL."],
+    refs: [r("web/src/api.ts", 87, 90)] },
+  { area: "Operations", t: "Request id in every log line",
+    chose: "AsyncLocalStorage", over: "Pass an id through every function", cost: "None",
+    why: ["Ties B2 calls, cache hits and renders to one request.", "Keys, tokens and signed URLs are never logged."],
+    refs: [r("server/src/app.ts", 36, 44)] },
+];
+
+/* ---------- security ---------- */
+const SECURITY = [
+  { q: "Can the browser ever see the B2 key?", s: "ok",
+    a: ["No. The key lives in the server environment only.", "The browser gets image bytes, never B2 URLs or presigned links."],
+    refs: [r("server/src/b2.ts", 48, 62)] },
+  { q: "Can this app write or delete in B2?", s: "ok",
+    a: ["No. Only `ListObjectsV2`, `HeadObject` and `GetObject` are imported.", "The key itself is a read-only application key."],
+    refs: [r("server/src/b2.ts", 1, 3)] },
+  { q: "Can a request read outside the yeast folder (path traversal)?", s: "ok",
+    a: ["Every `key` and `prefix` must start with `B2_RAW_PREFIX/`.", "`..`, backslash and a leading `/` are refused with 400."],
+    refs: [r("server/src/keys.ts", 3, 17)] },
+  { q: "Who can reach the server today?", s: "ok",
+    a: ["Only this PC: startup refuses any `HOST` that is not loopback.", "This is a temporary lock until sign-in exists."],
+    refs: [r("server/src/config.ts", 75, 78)] },
+  { q: "DNS rebinding from a malicious site?", s: "ok",
+    a: ["`hostCheck` refuses any `Host` header not in `ALLOWED_HOSTS`.", "At deploy, add the real domain to that set."],
+    refs: [r("server/src/app.ts", 88, 103)] },
+  { q: "Cross-site form posts (CSRF)?", s: "ok",
+    a: ["Both POST routes require `Sec-Fetch-Site: same-origin` when the header is present.", "Caveat: a very old browser without the header is allowed. Sign-in cookies (SameSite) close this."],
+    refs: [r("server/src/app.ts", 171, 176)] },
+  { q: "XSS and clickjacking?", s: "ok",
+    a: ["CSP `default-src 'self'`, `frame-ancestors 'none'`, `nosniff`, `X-Frame-Options: DENY`.", "Solid escapes text in JSX; no `innerHTML` with server data."],
+    refs: [r("server/src/app.ts", 65, 86)] },
+  { q: "Can request text forge log lines?", s: "ok",
+    a: ["`formatLine` turns line breaks and control characters into spaces."],
+    refs: [r("server/src/log.ts", 62, 67)] },
+  { q: "Do errors leak internals to the client?", s: "ok",
+    a: ["Client gets a short message; unknown errors are a plain 'Internal error'.", "Stack and cause go to the server log only."],
+    refs: [r("server/src/app.ts", 250, 260)] },
+  { q: "Resource abuse (memory, log flooding)?", s: "ok",
+    a: ["Zip ≤ 1000 files, 512 KB body. Render limit 4, source cap 512 MB, disk cap CACHE_MAX_MB.", "Browser error reports: 2 KB, 60 per minute."],
+    refs: [r("server/src/images.ts", 15, 19), r("server/src/app.ts", 30, 34)] },
+  { q: "Authentication?", s: "open",
+    a: ["Not built. `authSlot` is the empty middleware where it goes.", "Plan: company Google sign-in, domain enforced on the server."],
+    refs: [r("server/src/app.ts", 105, 108)] },
+  { q: "HTTPS and deploy host?", s: "open",
+    a: ["Localhost only today, so no TLS.", "Server, domain and TLS are chosen together with the security work."],
+    refs: [] },
+  { q: "Per-user rate limits?", s: "open",
+    a: ["Global limits exist, per-user ones do not.", "Needs user identity first (sign-in)."],
+    refs: [] },
+  { q: "Log file growth?", s: "open",
+    a: ["`LOG_FILE` has no rotation yet (README says so).", "Use logrotate or a size-based rotation at deploy."],
+    refs: [r("server/src/index.ts", 33, 40)] },
+];
+
+/* ---------- demo script ---------- */
+const DEMO = [
+  { trace: "boot", text: "Start with the map: three lanes, one rule. Only the server talks to B2." },
+  { trace: "folder", text: "Open a folder: signal → resource → memo chain. Show the 30 s share and the parallel Registry check." },
+  { trace: "preview", text: "Select an image: the render pipeline. Cache by ETag, limiter of 4, sharp normalise." },
+  { trace: "viewer", text: "Viewer: two keydown listeners and why they never fight. Cleanup on unmount." },
+  { trace: "zip", text: "Zip: why a form POST, why stored, how cancel is handled." },
+  { trace: "log", text: "Close with logging, then open the Security section and walk the open items." },
+];
+
+/* ---------- learn notes ---------- */
+const LEARN = [
+  ["01", "Node project setup", "01-node-project-setup.md"], ["02", "TypeScript pure modules", "02-typescript-pure-modules.md"],
+  ["03", "Express and S3", "03-express-and-s3.md"], ["04", "Solid signals and resources", "04-solid-signals-and-resources.md"],
+  ["05", "Solid stores and components", "05-solid-stores-and-components.md"], ["06", "sharp, cache, concurrency", "06-sharp-cache-and-concurrency.md"],
+  ["07", "Lazy images and downloads", "07-lazy-images-and-downloads.md"], ["08", "Solid events and cleanup", "08-solid-events-and-cleanup.md"],
+  ["09", "Build and production", "09-build-and-production.md"], ["10", "Registry metadata", "10-registry-metadata.md"],
+  ["11", "Field module", "11-field-module.md"], ["12", "Browser pages", "12-browser-pages.md"],
+  ["13", "Split tags", "13-split-tags.md"], ["14", "Split filters", "14-split-filters.md"], ["15", "Logging", "15-logging.md"],
+];
+
+/* ================= rendering ================= */
+const $ = (sel) => document.querySelector(sel);
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function esc(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+/** Escapes text, then turns `code` into <code>. */
+function rich(text) { return esc(text).replace(/`([^`]+)`/g, "<code>$1</code>"); }
+
+function refLabel(ref) { return ref.a === ref.b ? `${ref.f}:${ref.a}` : `${ref.f}:${ref.a}-${ref.b}`; }
+function vscodeUrl(ref) { return `vscode://file/${repoRoot.replace(/\\/g, "/").replace(/\/$/, "")}/${ref.f}:${ref.a}`; }
+function refLink(ref) {
+  return `<a class="ref" href="${esc(vscodeUrl(ref))}" title="Open in VS Code">${esc(refLabel(ref))}</a>`;
+}
+
+const TOKEN = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(`(?:\\[\s\S]|[^`\\])*`|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(const|let|var|function|return|if|else|async|await|export|import|from|new|throw|try|catch|finally|for|of|in|type|default|while|do|break|continue|typeof|instanceof|null|undefined|true|false|void)\b|\b(\d[\d_.]*)\b/g;
+function highlight(src) {
+  let out = "";
+  let last = 0;
+  for (const m of src.matchAll(TOKEN)) {
+    out += esc(src.slice(last, m.index));
+    const cls = m[1] ? "tk-c" : m[2] ? "tk-s" : m[3] ? "tk-k" : "tk-n";
+    out += `<span class="${cls}">${esc(m[0])}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(src.slice(last));
+}
+
+function codeBlock(ref) {
+  const key = `${ref.f}:${ref.a}-${ref.b}`;
+  const src = CODE[key];
+  if (src === undefined) return `<div class="code"><div class="code-head">${esc(refLabel(ref))} (snippet missing)</div></div>`;
+  const lines = src.split("\n");
+  const gutter = lines.map((_, i) => ref.a + i).join("\n");
+  return `<div class="code">
+    <div class="code-head"><span>${esc(refLabel(ref))}</span><a class="open" href="${esc(vscodeUrl(ref))}">Open in VS Code ↗</a></div>
+    <div class="code-body"><pre class="gutter">${gutter}</pre><pre class="src">${highlight(src)}</pre></div>
+  </div>`;
+}
+
+/* ----- map ----- */
+const nodeEls = {};
+const edgeEls = {};
+function laneColor(lane) { return `var(--${lane})`; }
+
+/** Nodes and edges sit this far below their listed y, leaving room for the lane notes. */
+const MAP_SHIFT_Y = 20;
+
+function buildMap() {
+  const root = $("#map");
+  for (const lane of LANES) {
+    const g = document.createElementNS(SVG_NS, "g");
+    g.innerHTML = `<rect class="lane-bg" x="${lane.x}" y="10" width="${lane.w}" height="670" rx="12"
+        style="fill:var(--${lane.id}-bg);stroke:${laneColor(lane.id)};stroke-opacity:.35;fill-opacity:.55"></rect>
+      <text class="lane-title" x="${lane.x + 14}" y="34" style="fill:${laneColor(lane.id)}">${esc(lane.title)}</text>
+      ${lane.note.map((line, i) => `<text class="lane-note" x="${lane.x + 14}" y="${54 + i * 15}">${esc(line)}</text>`).join("")}`;
+    root.append(g);
+  }
+  const svg = document.createElementNS(SVG_NS, "g");
+  svg.setAttribute("transform", `translate(0 ${MAP_SHIFT_Y})`);
+  root.append(svg);
+  for (const edge of EDGES) {
+    const p = document.createElementNS(SVG_NS, "path");
+    p.setAttribute("d", edge.d);
+    p.setAttribute("class", "edge");
+    svg.append(p);
+    edgeEls[edge.id] = p;
+  }
+  for (const node of NODES) {
+    const h = node.h ?? 44;
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "node");
+    g.setAttribute("tabindex", "0");
+    g.setAttribute("role", "button");
+    g.setAttribute("aria-label", `${node.t}: ${node.s}`);
+    const titleY = node.s ? node.y + 19 : node.y + h / 2 + 4;
+    g.innerHTML = `<rect x="${node.x}" y="${node.y}" width="${node.w}" height="${h}" rx="8" style="stroke:${laneColor(node.lane)}"></rect>
+      <text class="n-title" x="${node.x + 10}" y="${titleY}">${esc(node.t)}</text>
+      ${node.s ? `<text class="n-sub" x="${node.x + 10}" y="${node.y + 34}">${esc(node.s)}</text>` : ""}`;
+    g.addEventListener("click", () => showNode(node));
+    g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showNode(node); } });
+    svg.append(g);
+    nodeEls[node.id] = g;
+  }
+}
+
+function showNode(node) {
+  $("#nodeInfo").innerHTML = `<h4 style="color:${laneColor(node.lane)}">${esc(node.t)}</h4>
+    <ul>${node.role.map((x) => `<li>${rich(x)}</li>`).join("")}</ul>
+    ${node.ref ? refLink(node.ref) : ""}`;
+}
+
+function highlightMap(nodes, edges) {
+  $("#map").classList.add("tracing");
+  for (const [id, el] of Object.entries(nodeEls)) el.classList.toggle("on", nodes.includes(id));
+  for (const [id, el] of Object.entries(edgeEls)) el.classList.toggle("on", edges.includes(id));
+}
+
+/* ----- traces ----- */
+let traceIndex = 0;
+let stepIndex = 0;
+
+function laneOf(nodeId) { return NODES.find((n) => n.id === nodeId)?.lane ?? "browser"; }
+
+function renderTabs() {
+  $("#tabs").innerHTML = TRACES.map((t, i) =>
+    `<button class="tab" role="tab" aria-selected="${i === traceIndex}" data-i="${i}">${esc(t.title)}</button>`).join("");
+  for (const b of document.querySelectorAll("#tabs .tab")) b.addEventListener("click", () => openTrace(Number(b.dataset.i)));
+}
+
+function renderStep() {
+  const trace = TRACES[traceIndex];
+  const step = trace.steps[stepIndex];
+  const lanes = [...new Set(step.n.map(laneOf))];
+  $("#blurb").textContent = trace.blurb;
+  $("#progress").innerHTML = trace.steps.map((s, i) =>
+    `<button aria-label="Step ${i + 1}: ${esc(s.t)}" title="${esc(s.t)}" class="${i < stepIndex ? "done" : i === stepIndex ? "cur" : ""}" data-i="${i}"></button>`).join("");
+  for (const b of document.querySelectorAll("#progress button")) b.addEventListener("click", () => goStep(Number(b.dataset.i)));
+  $("#step").innerHTML = `
+    <div class="step-head"><span class="step-num">${stepIndex + 1} / ${trace.steps.length}</span>
+      ${lanes.map((l) => `<span class="lane-chip ${l}">${l}</span>`).join("")}</div>
+    <h3 class="step-title">${rich(step.t)}</h3>
+    <ul class="bullets">${step.b.map((x) => `<li>${rich(x)}</li>`).join("")}</ul>
+    ${step.why ? `<p class="why"><b>Why:</b> ${rich(step.why)}</p>` : ""}
+    ${step.refs.map(codeBlock).join("")}`;
+  $("#prevBtn").disabled = stepIndex === 0;
+  $("#nextBtn").disabled = stepIndex === trace.steps.length - 1;
+  $("#traceNotes").innerHTML = "Deeper: " + trace.learn.map((n) => {
+    const note = LEARN.find((x) => x[0] === n);
+    return `<a href="${esc(note[2])}">${esc(n)} ${esc(note[1])}</a>`;
+  }).join(" · ");
+  highlightMap(step.n, step.e);
+  saveStepInUrl();
+}
+
+/** Puts the open trace and step in the address (?trace=zip&step=3), so a step can be linked. */
+function saveStepInUrl() {
+  const query = `?trace=${TRACES[traceIndex].id}&step=${stepIndex + 1}`;
+  try { history.replaceState(null, "", query + location.hash); } catch { /* some file:// setups refuse */ }
+}
+
+/** Opens the trace and step named in the address, if any. */
+function readStepFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const i = TRACES.findIndex((t) => t.id === params.get("trace"));
+  if (i < 0) return;
+  traceIndex = i;
+  const step = Number(params.get("step")) - 1;
+  stepIndex = Number.isInteger(step) ? Math.min(TRACES[i].steps.length - 1, Math.max(0, step)) : 0;
+}
+
+function openTrace(i) { traceIndex = i; stepIndex = 0; renderTabs(); renderStep(); }
+function goStep(i) {
+  const max = TRACES[traceIndex].steps.length - 1;
+  stepIndex = Math.min(max, Math.max(0, i));
+  renderStep();
+}
+
+/* ----- other sections ----- */
+function renderConcepts() {
+  $("#concepts").innerHTML = CONCEPTS.map((c) => `<div class="card concept">
+    <span class="tag" style="color:var(--${c.kind === "signal" ? "sig" : c.kind === "resource" ? "res" : c.kind === "effect" ? "eff" : c.kind === "fn" ? "ink-2" : c.kind})">${esc(c.kind === "fn" ? "owner" : c.kind)}</span>
+    <h3>${esc(c.name)}</h3><p>${rich(c.p)}</p><p class="react">${rich(c.react)}</p>${refLink(c.ref)}</div>`).join("");
+}
+
+function chip(item) {
+  return `<a class="chip" href="${esc(vscodeUrl(item.ref))}" title="${esc(refLabel(item.ref))}"><span class="k k-${item.k}">${esc(item.k)}</span>${esc(item.n)}</a>`;
+}
+function renderGraph() {
+  $("#graphRows").innerHTML = GRAPH.map((row) => `<div class="chain-row"><h4>${esc(row.title)}</h4>
+    <div class="chain">${row.chain.map((group) => `<span class="group">${group.map(chip).join("")}</span>`).join('<span class="arrow">▸</span>')}</div>
+    <div class="feeds">${rich(row.feeds)}</div></div>`).join("");
+}
+
+let invFilter = "all";
+function renderInventory() {
+  const kinds = ["all", ...new Set(INVENTORY.map((x) => x.k))];
+  $("#invFilters").innerHTML = kinds.map((k) =>
+    `<button type="button" aria-pressed="${k === invFilter}" data-k="${k}">${k === "all" ? "All" : esc(KIND_LABEL[k])} · ${k === "all" ? INVENTORY.length : INVENTORY.filter((x) => x.k === k).length}</button>`).join("");
+  for (const b of document.querySelectorAll("#invFilters button")) b.addEventListener("click", () => { invFilter = b.dataset.k; renderInventory(); });
+  $("#invBody").innerHTML = INVENTORY.filter((x) => invFilter === "all" || x.k === invFilter).map((x) => `<tr>
+    <td><span class="chip"><span class="k k-${x.k}">${esc(KIND_LABEL[x.k])}</span>${x.side}</span></td>
+    <td>${refLink(x.ref)}</td><td>${rich(x.on)}</td><td>${rich(x.does)}</td>
+    <td class="${x.off.includes("lifetime") || x.off.includes("once") ? "cleanup-page" : "cleanup-ok"}">${esc(x.off)}</td></tr>`).join("");
+}
+
+function renderDecisions() {
+  $("#decisionList").innerHTML = DECISIONS.map((d) => `<article class="card decision">
+    <span class="area">${esc(d.area)}</span><h3>${esc(d.t)}</h3>
+    <div class="vs"><span class="chose-l">chose</span><span>${rich(d.chose)}</span>
+      <span class="over-l">over</span><span>${rich(d.over)}</span>
+      <span class="cost-l">cost</span><span>${rich(d.cost)}</span></div>
+    <ul>${d.why.map((w) => `<li>${rich(w)}</li>`).join("")}</ul>
+    <div class="refs">${d.refs.map(refLink).join("")}</div></article>`).join("");
+}
+
+function renderSecurity() {
+  const ok = SECURITY.filter((x) => x.s === "ok").length;
+  $("#secSummary").innerHTML = `<span class="status ok">${ok} in place</span><span class="status open">${SECURITY.length - ok} open</span>`;
+  $("#secList").innerHTML = SECURITY.map((x) => `<details class="card q"${x.s === "open" ? " open" : ""}>
+    <summary><span class="status ${x.s}">${x.s === "ok" ? "in place" : "open"}</span><span class="qt">${esc(x.q)}</span><span class="chev">▸</span></summary>
+    <div class="body"><ul class="bullets">${x.a.map((a) => `<li>${rich(a)}</li>`).join("")}</ul>${x.refs.map(codeBlock).join("")}</div></details>`).join("");
+}
+
+function renderDemo() {
+  $("#demoList").innerHTML = DEMO.map((d) => {
+    const i = TRACES.findIndex((t) => t.id === d.trace);
+    return `<li><button type="button" data-i="${i}">${esc(TRACES[i].title)}</button> · ${rich(d.text)}</li>`;
+  }).join("");
+  for (const b of document.querySelectorAll("#demoList button")) b.addEventListener("click", () => {
+    openTrace(Number(b.dataset.i));
+    $("#tour").scrollIntoView();
+  });
+}
+
+function renderLearn() {
+  $("#learnList").innerHTML = LEARN.map(([n, title, file]) => `<a href="${esc(file)}"><span>${n}</span>${esc(title)}</a>`).join("");
+}
+
+/** Everything that holds a VS Code link (repo path changes re-render these). */
+function renderLinked() {
+  renderStep(); renderConcepts(); renderGraph(); renderInventory(); renderDecisions(); renderSecurity();
+}
+
+/* ----- theme, repo path, keys ----- */
+function applyTheme(theme) {
+  if (theme) document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+}
+applyTheme(readStore(THEME_KEY));
+$("#themeBtn").addEventListener("click", () => {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark" ||
+    (!document.documentElement.getAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+  const next = dark ? "light" : "dark";
+  applyTheme(next);
+  writeStore(THEME_KEY, next);
+});
+
+const repoInput = $("#repoRoot");
+repoInput.value = repoRoot;
+repoInput.addEventListener("change", () => {
+  repoRoot = repoInput.value.trim() || DEFAULT_REPO_ROOT;
+  repoInput.value = repoRoot;
+  writeStore(REPO_KEY, repoRoot);
+  renderLinked();
+});
+
+$("#prevBtn").addEventListener("click", () => goStep(stepIndex - 1));
+$("#nextBtn").addEventListener("click", () => goStep(stepIndex + 1));
+document.addEventListener("keydown", (e) => {
+  if (e.target instanceof HTMLInputElement || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.key === "ArrowRight") { goStep(stepIndex + 1); e.preventDefault(); }
+  if (e.key === "ArrowLeft") { goStep(stepIndex - 1); e.preventDefault(); }
+});
+
+buildMap();
+readStepFromUrl();
+renderTabs();
+renderLinked();
+renderDemo();
+renderLearn();
+</script>
+</body>
+</html>
