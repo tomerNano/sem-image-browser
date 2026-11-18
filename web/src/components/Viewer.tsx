@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { downloadUrl, previewUrl, reportClientError, thumbUrl } from "../api";
 import { field, type FieldId } from "../lib/fields";
+import { prefetchPreviews } from "../lib/prefetch";
 import { scaleBar } from "../lib/scale";
 import { store } from "../store";
 import { NextIcon, PrevIcon } from "./Icons";
@@ -8,8 +9,6 @@ import PreparingBadge from "./PreparingBadge";
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
-/** Neighbours whose previews load in the background: two ahead, one behind. */
-const PREFETCH = [1, 2, -1];
 /** Values in the data bar under the image, as an SEM shows them. */
 const DATA_BAR: { id: FieldId; label: string }[] = [
   { id: "fieldWidth", label: "Field width" },
@@ -61,12 +60,7 @@ export default function Viewer(props: { fileKey: string }) {
   );
 
   // Ask for the neighbours' previews now, so stepping finds them in the browser cache.
-  createEffect(() => {
-    for (const delta of PREFETCH) {
-      const neighbour = view()?.at(delta);
-      if (neighbour) new Image().src = previewUrl(neighbour.key, neighbour.uploaded);
-    }
-  });
+  createEffect(() => prefetchPreviews(store.visibleFiles(), props.fileKey));
 
   /** Scale bar for the image as drawn now (object-fit: contain, then zoomed). */
   const bar = () => {

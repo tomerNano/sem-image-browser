@@ -1,6 +1,7 @@
-import { createResource, createSignal, For, Match, Show, Switch } from "solid-js";
+import { createEffect, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { downloadUrl, downloadZip, listFolder, MAX_ZIP_FILES, previewUrl, reportClientError, thumbUrl } from "../api";
 import { FIELDS, PREVIEW_GROUPS, type Field, type PreviewGroup } from "../lib/fields";
+import { prefetchPreviews } from "../lib/prefetch";
 import { formatSize, itemCount } from "../lib/rows";
 import { store } from "../store";
 import type { FileEntry, ListResult } from "../types";
@@ -78,6 +79,11 @@ function CopyName(props: { name: string }) {
 function FilePreview(props: { file: FileEntry }) {
   const [failed, setFailed] = createSignal(false);
   const [loaded, setLoaded] = createSignal(false);
+  // Arrow keys in the grid step through files like the viewer does, so prefetch the same way.
+  // While the viewer is open it prefetches itself; doing it here too would double the requests.
+  createEffect(() => {
+    if (!store.viewer()) prefetchPreviews(store.visibleFiles(), props.file.key);
+  });
   return (
     <>
       {/* The thumbnail (usually already in the browser cache from the grid) shows at once and
