@@ -16,10 +16,14 @@ function checkPath(value: unknown, rawPrefix: string, what: string): string {
   return value;
 }
 
-/** Validate an object key (a file, so it must not end with "/"). Throws HttpError(400). */
+/**
+ * Validate an object key: a TIFF file (.tif / .tiff), the only files the GUI lists. Other files
+ * under the prefix (pipeline PNGs, CSVs) are refused even when someone types their key.
+ * Throws HttpError(400).
+ */
 export function validateKey(value: unknown, rawPrefix: string): string {
   const key = checkPath(value, rawPrefix, "key");
-  if (key.endsWith("/")) {
+  if (!isTiff(key)) {
     throw new HttpError(400, "Invalid key");
   }
   return key;

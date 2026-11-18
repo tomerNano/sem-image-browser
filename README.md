@@ -44,7 +44,9 @@ everything else works; metadata shows "—" and the filters and tags are empty.
 | `B2_ENDPOINT_URL`, `B2_REGION`, `B2_BUCKET` | required | B2 S3 endpoint, region and bucket |
 | `B2_RAW_PREFIX` | `yeast` | Folder that holds the batches (splits) |
 | `HOST`, `PORT` | `127.0.0.1`, `3000` | Loopback only until sign-in exists |
+| `ALLOWED_HOSTS` | none | Extra host names (comma-separated) the server answers to; loopback names are always allowed |
 | `CACHE_DIR`, `CACHE_MAX_MB` | `.cache-images`, `2048` | Disk cache for thumbnails and previews, and its size limit |
+| `RENDER_SLOTS` | `4` | Thumbnails and previews rendered at the same time; above 4, also raise `UV_THREADPOOL_SIZE` |
 | `REGISTRY_GITHUB_TOKEN` or `REGISTRY_CSV_PATH` | none | Registry source (see above) |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `LOG_FILE` | `logs/server.log` | Log file; `off` = console only |
@@ -107,7 +109,7 @@ The log file has no rotation yet. Details: `docs/learn/15-logging.md`.
 
 ## API
 
-Every key and prefix must sit under `B2_RAW_PREFIX`.
+Every key and prefix must sit under `B2_RAW_PREFIX`. Every key must be a `.tif` / `.tiff` file.
 
 | Endpoint | Returns |
 |---|---|
@@ -125,6 +127,7 @@ Every key and prefix must sit under `B2_RAW_PREFIX`.
 
 - Read-only B2 key; the B2 client imports only list, head and get commands.
 - Requests with an unknown `Host` header are refused (blocks DNS rebinding); add the server's domain
-  to `ALLOWED_HOSTS` in `app.ts` when it is deployed.
+  to the `ALLOWED_HOSTS` setting when it is deployed.
+- Only `.tif` / `.tiff` keys are accepted for thumbnails, previews and downloads; any other key gets 400.
 - Content-Security-Policy and other hardening headers on every response.
 - Sign-in slot (`authSlot` in `app.ts`) is empty: no authentication yet.

@@ -70,6 +70,23 @@ test("download streams exact bytes with the original filename", async () => {
   expect(Buffer.compare(res.body, bytes)).toBe(0);
 });
 
+test("download and zip refuse files that are not TIFFs", async () => {
+  const csv = p + "notes.csv";
+  const app = createApp({ config, b2: fakeB2({ [csv]: Buffer.from("x") }) });
+  expect((await request(app).get("/api/download").query({ key: csv })).status).toBe(400);
+  const zip = await request(app)
+    .post("/api/download-zip")
+    .type("form")
+    .send(`key=${encodeURIComponent(csv)}`);
+  expect(zip.status).toBe(400);
+});
+
+test("a host name from ALLOWED_HOSTS is accepted; others are still refused", async () => {
+  const app = createApp({ config: { ...config, allowedHosts: [...config.allowedHosts, "gui.example.com"] }, b2: fakeB2({}) });
+  expect((await request(app).get("/api/root").set("Host", "gui.example.com")).status).toBe(200);
+  expect((await request(app).get("/api/root").set("Host", "evil.example")).status).toBe(403);
+});
+
 test("download of a missing key is 404", async () => {
   const res = await request(createApp({ config, b2: fakeB2({}) }))
     .get("/api/download")

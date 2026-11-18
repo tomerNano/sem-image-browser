@@ -14,7 +14,8 @@ const MAX_SIDE: Record<ImageSize, number> = { thumb: 256, preview: 1600 };
 
 /**
  * Largest source file this server downloads into memory to render. A 7680 x 5100 16-bit SEM TIFF
- * is about 78 MB; with 4 renders at a time this keeps memory bounded. Downloads are not limited.
+ * is about 78 MB; with RENDER_SLOTS renders at a time this keeps memory bounded. Downloads stream
+ * from B2 and are not held in memory, so this size limit does not apply to them.
  */
 export const MAX_SOURCE_BYTES = 512 * 1024 * 1024;
 

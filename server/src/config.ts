@@ -13,6 +13,10 @@ export type Config = {
   cacheDir: string;
   /** Disk cache size limit; above it the least recently used images are deleted. */
   cacheMaxBytes: number;
+  /** Thumbnails and previews rendered at the same time; each holds a whole image in memory. */
+  renderSlots: number;
+  /** Host names the server answers to (Host header): the loopback names plus ALLOWED_HOSTS. */
+  allowedHosts: string[];
   /** Where images.csv comes from; null when neither REGISTRY_CSV_PATH nor REGISTRY_GITHUB_TOKEN is set. */
   registry: RegistryConfig | null;
   /** Lowest level written to the log. */
@@ -42,6 +46,14 @@ const REQUIRED = [
 ] as const;
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
+/** Render slots when RENDER_SLOTS is not set. Matches libuv's default thread pool (UV_THREADPOOL_SIZE=4), which sharp runs on. */
+const DEFAULT_RENDER_SLOTS = 4;
+
+/** Host header names that are always allowed (as Express reports them: IPv6 in brackets). */
+const LOOPBACK_HOST_NAMES = ["localhost", "127.0.0.1", "[::1]"];
+/** A bare host name: letters, digits, dots and dashes. No scheme, port or path. */
+const HOST_NAME_PATTERN = /^[a-z0-9.-]+$/;
 
 const LOG_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error"];
 const DEFAULT_LOG_FILE = path.join("logs", "server.log");
@@ -83,6 +95,13 @@ export function loadConfig(env: Env, rootDir: string): Config {
   if (!Number.isInteger(cacheMaxMb) || cacheMaxMb < 1) {
     throw new Error("CACHE_MAX_MB must be a positive integer (megabytes)");
   }
+
+  const renderSlotsText = env.RENDER_SLOTS?.trim() || String(DEFAULT_RENDER_SLOTS);
+  const renderSlots = Number(renderSlotsText);
+  if (!Number.isInteger(renderSlots) || renderSlots < 1) {
+    throw new Error("RENDER_SLOTS must be a positive integer");
+  }
+
   return {
     accessKeyId: env.AWS_ACCESS_KEY_ID!.trim(),
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY!.trim(),
@@ -94,10 +113,33 @@ export function loadConfig(env: Env, rootDir: string): Config {
     port,
     cacheDir: path.isAbsolute(cacheDir) ? cacheDir : path.join(rootDir, cacheDir),
     cacheMaxBytes: cacheMaxMb * 1024 * 1024,
+    renderSlots,
+    allowedHosts: loadAllowedHosts(env),
     registry: loadRegistryConfig(env, rootDir),
     logLevel: loadLogLevel(env),
     logFile: loadLogFile(env, rootDir),
   };
+}
+
+/**
+ * Loopback names plus the comma-separated ALLOWED_HOSTS (e.g. the deployed domain), lower-cased.
+ *
+ * Args:
+ *   env: Environment variables.
+ *
+ * Returns:
+ *   Host names the Host check accepts.
+ */
+function loadAllowedHosts(env: Env): string[] {
+  const extra = (env.ALLOWED_HOSTS ?? "")
+    .split(",")
+    .map((name) => name.trim().toLowerCase())
+    .filter((name) => name !== "");
+  const invalid = extra.filter((name) => !HOST_NAME_PATTERN.test(name));
+  if (invalid.length > 0) {
+    throw new Error(`ALLOWED_HOSTS must list bare host names (no https://, port or path): ${invalid.join(", ")}`);
+  }
+  return [...LOOPBACK_HOST_NAMES, ...extra];
 }
 
 /** LOG_LEVEL in any case; default info. */

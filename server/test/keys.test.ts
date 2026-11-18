@@ -4,6 +4,7 @@ import { batchDate, cacheSources, isTiff, validateKey, validatePrefix } from "..
 test.each([
   "yeast/b/raw/cell_1.tiff",
   "yeast/2026-10-07_miluda_5b_termo_b001/raw/Mil 5B 10^1_gold_1.tiff",
+  "yeast/b/raw/CELL_2.TIF",
 ])("accepts %s", (k) => expect(validateKey(k, "yeast")).toBe(k));
 
 test.each([
@@ -16,6 +17,9 @@ test.each([
   "yeast\\x.tif",
   "yeast/a/",
   "yeastx/a.tif",
+  "yeast/b/raw/.cache/cell_1.png",
+  "yeast/b/manifest.csv",
+  "yeast/b/raw/cell_1.tiff.bak",
 ])("rejects key %j", (k) =>
   expect(() => validateKey(k, "yeast")).toThrow(expect.objectContaining({ status: 400 })),
 );

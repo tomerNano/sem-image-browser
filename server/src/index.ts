@@ -62,7 +62,7 @@ if (config.registry?.kind === "file") {
   registryCheckEveryMs = GITHUB_CHECK_EVERY_MS;
 }
 const registry = createRegistry(registrySource, registryCheckEveryMs, tagsSource);
-const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir, config.cacheMaxBytes), limit: createLimiter(4) });
+const images = createImageRenderer({ b2, cache: createDiskCache(config.cacheDir, config.cacheMaxBytes), limit: createLimiter(config.renderSlots) });
 // Production (`npm start` passes --production): this one process also serves web/dist.
 const production = process.argv.includes("--production") || process.env.NODE_ENV === "production";
 const webDist = production ? path.join(repoRoot, "web", "dist") : undefined;
@@ -78,7 +78,8 @@ function registryText(): string {
 app.listen(config.port, config.host, () => {
   log.info(`B2 GUI server on http://${config.host}:${config.port} (${production ? "production" : "development"})`);
   log.info(`B2: bucket ${config.bucket}, prefix ${config.rawPrefix}/, endpoint ${config.endpoint}`);
-  log.info(`Image cache: ${config.cacheDir}, limit ${sizeText(config.cacheMaxBytes)}`);
+  log.info(`Image cache: ${config.cacheDir}, limit ${sizeText(config.cacheMaxBytes)}, ${config.renderSlots} render slots`);
+  log.info(`Allowed hosts: ${config.allowedHosts.join(", ")}`);
   log.info(`Registry: ${registryText()}`);
   log.info(`Log: level ${config.logLevel}, file ${logFile ?? "off"}`);
 });

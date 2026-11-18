@@ -23,6 +23,21 @@ test("CACHE_MAX_MB sets the cache limit and must be a positive integer", () => {
   expect(() => loadConfig({ ...full, CACHE_MAX_MB: "2GB" }, "/app")).toThrow(/CACHE_MAX_MB/);
 });
 
+test("RENDER_SLOTS defaults to 4 and must be a positive integer", () => {
+  expect(loadConfig(full, "/app").renderSlots).toBe(4);
+  expect(loadConfig({ ...full, RENDER_SLOTS: "8" }, "/app").renderSlots).toBe(8);
+  expect(() => loadConfig({ ...full, RENDER_SLOTS: "0" }, "/app")).toThrow(/RENDER_SLOTS/);
+  expect(() => loadConfig({ ...full, RENDER_SLOTS: "four" }, "/app")).toThrow(/RENDER_SLOTS/);
+});
+
+test("ALLOWED_HOSTS adds host names to the loopback names, lower-cased", () => {
+  expect(loadConfig(full, "/app").allowedHosts).toEqual(["localhost", "127.0.0.1", "[::1]"]);
+  const extra = loadConfig({ ...full, ALLOWED_HOSTS: " gui.example.com , B2.Example.org,," }, "/app").allowedHosts;
+  expect(extra).toEqual(["localhost", "127.0.0.1", "[::1]", "gui.example.com", "b2.example.org"]);
+  expect(() => loadConfig({ ...full, ALLOWED_HOSTS: "https://gui.example.com" }, "/app")).toThrow(/ALLOWED_HOSTS/);
+  expect(() => loadConfig({ ...full, ALLOWED_HOSTS: "gui.example.com:443" }, "/app")).toThrow(/ALLOWED_HOSTS/);
+});
+
 test("names every missing variable and never prints values", () => {
   expect(() => loadConfig({ AWS_SECRET_ACCESS_KEY: "s3cr3t" }, "/app")).toThrow(
     /AWS_ACCESS_KEY_ID.*B2_ENDPOINT_URL.*B2_REGION.*B2_BUCKET/,
